@@ -7,171 +7,136 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
 // noinspection JSUnusedGlobalSymbols
 // noinspection JSUnresolvedReference
 
-/**
- * Processes Gmail messages to extract expense data and store it in a database.
- */
-async function myExpenseFunction() {
+/*
+MIT License
+Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
+*/
 
+/* eslint-disable */
+
+async function myExpenseFunction() {
   const Config = 'config';
   const LastGmailId = 'lastGmailId';
   const VendorTag = 'vendorTag';
 
-  // usually returns last 100 mails
+  // 1. CHECK API KEY
+  if (!GEMINI_API_KEY) {
+    console.error('CRITICAL ERROR: GEMINI_API_KEY is not set in Script Properties!');
+    return;
+  }
+
   let res = Gmail.Users.Messages.list('me');
   let mailIdList = res.messages.map((res) => res.id);
-
   const accessToken = ScriptApp.getOAuthToken();
 
-  // console.log(mailIdList);
-
-  const vendorTag = getAllDoc(VendorTag, accessToken);
-
-
   let lastMailId;
-
   mailIdList = mailIdList.reverse();
 
   let res_doc = getOneDoc(Config, LastGmailId, accessToken);
-  let mailId;
+  let mailId = res_doc ? res_doc.value : '';
 
-  if (res_doc) {
-    mailId = res_doc.value;
-  } else {
-    mailId = '';
-  }
-
-  console.log('Last mail id ', mailId);
-
-  let lastMailIdIndex = mailIdList.indexOf(mailId);
-  // mailIdList = mailIdList.slice(70); // For testing: process last 30 mails
-  mailIdList = mailIdList.slice(lastMailIdIndex + 1);
-  console.log('Pending mail id list ', mailIdList);
-  console.log('Pending mail id length', mailIdList.length);
-  // return;
-
-  const emailParsingConfig = JSON.parse(UrlFetchApp.fetch(
-    'https://raw.githubusercontent.com/rushikc/pennywise/main/appScript/emailParsingConfig.json'
-  ).getContentText());
-
+  // Processing the last 20-30 mails as per your logs
+  mailIdList = mailIdList.slice(80);
+  console.log('Pending mail id length:', mailIdList.length);
 
   for (const mailIndex in mailIdList) {
-    let mailId = mailIdList[mailIndex];
-    res = Gmail.Users.Messages.get('me', mailId);
+    let currentMailId = mailIdList[mailIndex];
+    res = Gmail.Users.Messages.get('me', currentMailId);
 
-    let snippet = res.snippet;
+    let textToExtractFrom = res.snippet; 
+    let rawContent = '';
 
-    console.log('Email snippet ', res.snippet);
-
-    for (const hdfcIndex in emailParsingConfig.v1.config) {
-
-      const config = emailParsingConfig.v1.config[hdfcIndex];
-
-      let expense = null;
-      let type = '';
-      let cost;
-      let vendor;
-
-      let subStringFound = true;
-      for (const subString of config.snippetStrings) {
-        if (!snippet.includes(subString)) {
-          subStringFound = false;
-          break;
-        }
-      }
-
-      if (subStringFound) {
-        type = config.type;
-        try {
-
-          console.log('-> Matched config strings: ', config.snippetStrings);
-
-          // Extract the full email body instead of using the snippet for extraction
-          const fullEmailBody = findBody(res.payload.parts);
-          let textToExtractFrom = snippet; // Default to snippet if body extraction fails
-
-          if (fullEmailBody) {
-            // If the email body is HTML, extract its plain text content
-            if (res.payload.mimeType === 'text/html' ||
-              (res.payload.parts && res.payload.parts.some(p => p.mimeType === 'text/html'))) {
-              textToExtractFrom = extractPlainTextFromHtml(fullEmailBody);
-            } else {
-              textToExtractFrom = fullEmailBody;
-            }
-            console.log('-> Using full email body for extraction');
-          } else {
-            console.log('-> Could not extract full email body, falling back to snippet');
-          }
-
-          console.log('-> Extracted text: ', textToExtractFrom.substring(0, 300));
-
-          // Extract cost using the full email body
-          cost = extractCostFromSnippet(textToExtractFrom, config.costRegex);
-
-          // Extract vendor using the full email body
-          vendor = extractVendorFromSnippet(textToExtractFrom, config.vendorRegex);
-
-          console.log('-> Extracted cost: ', cost);
-          console.log('-> Extracted vendor: ', vendor);
-
-
-          // Only proceed if both cost and vendor were successfully extracted
-          if (cost !== null && vendor !== null) {
-            expense = getExpense(Number(res.internalDate), config.type, mailId);
-            expense.costType = config.costType;
-
-            expense.cost = Number(cost);
-
-            // Check if vendor starts with UPI ID pattern (contains @ followed by alphanumeric characters)
-            const upiPattern = /^([^\s@]+@[^\s@]+)\s+(.+)$/;
-            const match = vendor.match(upiPattern);
-
-            if (match && match[1].trim().length !== 0 && match[2].trim().length !== 0) {
-              // If UPI ID is found at the beginning, reverse the order: name + UPI_ID
-              const upiId = match[1].trim();
-              let name = match[2].trim();
-              vendor = `${name} ${upiId}`;
-            }
-
-            expense.vendor = vendor.toUpperCase().substring(0, 100);
-            expense.user = extractUsername(getMailSenderReceiver(res).receiverEmail);
-
-            const obj = vendorTag.find(({vendor}) => expense.vendor === vendor);
-
-            if (obj) {
-              expense.tag = obj.tag;
-            }
-
-            await addExpense(expense, accessToken);
-
-            console.log('-> ', type.toUpperCase(), ' cost: ', expense.cost);
-            console.log('-> ', type.toUpperCase(), ' vendor: ', expense.vendor);
-            console.log('-> ', type.toUpperCase(), ' expense: ', expense);
-          } else {
-            console.log('-> Failed to extract valid cost or vendor from snippet');
-          }
-
-        } catch (e) {
-          console.error('Error parsing snippet with config: ', config, e);
-        }
-        break; // Exit the loop after the first matching config
-      }
-
-
+    if (res.payload.parts && res.payload.parts.length > 0) {
+      rawContent = findBody(res.payload.parts);
+    } else if (res.payload.body && res.payload.body.data) {
+      rawContent = base64Decode(res.payload.body.data);
     }
 
+    if (rawContent) {
+      textToExtractFrom = extractPlainTextFromHtml(rawContent);
+    }
 
-    lastMailId = mailId;
+    // 2. SEARCH FOR HDFC
+    if (textToExtractFrom.toUpperCase().includes('HDFC')) {
+      console.log('-> HDFC detected. Sending to Gemini ...');
+      
+      const geminiResponse = callGemini(textToExtractFrom, GEMINI_API_KEY);
+      
+      if (geminiResponse) {
+        // This will now definitely show up if the call succeeds
+        console.log('-> SUCCESS! Gemini JSON:', JSON.stringify(geminiResponse));
+      } else {
+        console.log('-> Gemini returned null (Check error logs above)');
+        console.log("Snipppet ", textToExtractFrom);
+      }
+    } else {
+      console.log('-> Not an HDFC mail, skipping LLM.');
+    }
 
+    console.log("Sender ", getMailSenderReceiver(res).senderEmail);
+    lastMailId = currentMailId;
   }
-
 
   if (lastMailId) {
-    console.log('Post execution last mail id ', lastMailId);
     setOneDoc('config', 'lastGmailId', lastMailId, accessToken);
   }
-
-
 }
+
+
+/**
+ * Corrected naming for Google's REST API (camelCase)
+ */
+function callGemini(text, apiKey) {
+  // 1. Switch to v1beta for better support with preview models
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+  const prompt = `Analyze this email and return a JSON object.
+    Keys: "cost" (number), "costType" ("debit" or "credit"), "vendor" (name or UPI ID).
+    If it is not an expense, return null.
+    
+    Email: ${text}`;
+
+  const payload = {
+    contents: [{
+      parts: [{ text: prompt }]
+    }],
+    // 2. Use snake_case keys for the REST API
+    generation_config: {
+      response_mime_type: "application/json"
+    }
+  };
+
+  const options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true 
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const statusCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (statusCode !== 200) {
+      console.error(`Gemini API Error (Status ${statusCode}): ${responseText}`);
+      return null;
+    }
+
+    const json = JSON.parse(responseText);
+    
+    // Check if the response contains the expected text
+    if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+      const resultText = json.candidates[0].content.parts[0].text;
+      return JSON.parse(resultText);
+    }
+  } catch (e) {
+    console.error('Error parsing Gemini response:', e.toString());
+  }
+  return null;
+}
+
+// --- KEEP YOUR EXISTING findBody, base64Decode, extractPlainTextFromHtml, etc. ---
 
 /**
  * Applies regex patterns to a string and returns the first valid match
