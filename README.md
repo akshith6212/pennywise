@@ -3,7 +3,6 @@
   <table align="center">
     <tr>
       <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/logo_low_res.png" alt="Pennywise Logo" width="150" height="150" /></td>
-      <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/cross2.png" alt="" width="150" height="150" /></td>
       <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/gemini_logo.png" alt="Google Gemini" width="150" height="150" /></td>
     </tr>
   </table>
