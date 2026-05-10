@@ -6,7 +6,7 @@
       <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/gemini_logo.png" alt="Google Gemini" width="150" height="150" /></td>
     </tr>
   </table>
-  <h1>Pennywise</h1>
+  <h1>Pennywise × Gemini</h1>
   <h3>Track, Analyze, and Master Your Personal Finances</h3>
 </div>
 
