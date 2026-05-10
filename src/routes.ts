@@ -15,6 +15,7 @@ const ManageTags = lazy(() => import('./pages/setting/setting-views/ManageTags')
 const ManageVendorTags = lazy(() => import('./pages/setting/setting-views/ManageVendorTags'));
 const ReloadExpense = lazy(() => import('./pages/setting/setting-views/./ReloadData'));
 const AutoTagExpenses = lazy(() => import('./pages/setting/setting-views/AutoTagExpenses'));
+const ManageBanks = lazy(() => import('./pages/setting/setting-views/ManageBanks'));
 
 // interface
 interface Route {
@@ -97,6 +98,14 @@ export const routes: Array<Route> = [
     path: '/auto-tag-expenses',
     enabled: true,
     component: AutoTagExpenses,
+    isProtected: true,
+  },
+  {
+    key: 'setting-banks-route',
+    title: 'Banks',
+    path: '/setting-banks',
+    enabled: true,
+    component: ManageBanks,
     isProtected: true,
   }
 ];

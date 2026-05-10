@@ -40,6 +40,13 @@ export interface BankConfig {
   creditCards: string[];
 }
 
+/** Banks used to detect transaction emails before sending text to Gemini (Apps Script + UI config). */
+export interface BankEmailParsingEntry {
+  id: string;
+  displayName: string;
+  matchStrings: string[];
+}
+
 
 // used to store the configuration for the app in IndexedDB
 export interface Config {

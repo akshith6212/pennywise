@@ -20,21 +20,34 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
   margin-bottom: 1rem;
 }
 
-.tag-list {
-  width: 100%;
+.tag-pills-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.5rem;
+  min-height: 3rem;
+  margin-bottom: 1.25rem;
+  align-content: flex-start;
 }
 
-.tag-item {
-  margin-bottom: 0.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
-  padding-right: 4px;
-  background-color: var(--bg-card); /* Use theme variable */
-  box-shadow: var(--box-shadow);
+.tag-pills-empty {
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem 0;
+}
 
-  &.is-dragging {
-    background-color: var(--bg-tertiary); /* Use theme variable for dragging */
-    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3);
+.manage-tags-chip {
+  border-radius: 999px;
+  font-weight: 500;
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+
+  .MuiChip-deleteIcon {
+    color: var(--text-secondary);
+
+    &:hover {
+      color: var(--accent-red);
+    }
   }
 }
 
