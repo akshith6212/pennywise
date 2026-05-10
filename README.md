@@ -1,6 +1,10 @@
 <div align="center">
   <br/>
-  <img src="public/logo_low_res.png" alt="Pennywise Logo" width="150px" />
+  <p>
+    <img src="public/gemini-icon.webp" alt="Google Gemini" width="150" />
+    &nbsp;<strong>·</strong>&nbsp;
+    <img src="public/logo_low_res.png" alt="Pennywise Logo" width="150" />
+  </p>
   <h1>Pennywise</h1>
   <h3>Track, Analyze, and Master Your Personal Finances</h3>
 </div>

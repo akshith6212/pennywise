@@ -35,11 +35,14 @@ async function myExpenseFunction() {
   let res_doc = getOneDoc(Config, LastGmailId, accessToken);
   let mailId = res_doc ? res_doc.value : '';
 
-  var bankParseDoc = getOneDoc(Config, 'emailParseBanks', accessToken);
-  var emailParseBanks = (bankParseDoc && bankParseDoc.banks) ? bankParseDoc.banks : [];
+  const bankParseDoc = getOneDoc(Config, 'emailParseBanks', accessToken);
+  const emailParseBanks = (bankParseDoc && bankParseDoc.banks) ? bankParseDoc.banks : [];
+
+  const vendorTagRaw = getAllDoc(VendorTag, accessToken);
+  const vendorTagList = Array.isArray(vendorTagRaw) ? vendorTagRaw : [];
 
   let lastMailIdIndex = mailIdList.indexOf(mailId);
-  mailIdList = mailIdList.slice(80); // For testing: process last 30 mails
+  mailIdList = mailIdList.slice(90); // For testing: process last 30 mails
   // mailIdList = mailIdList.slice(lastMailIdIndex + 1);
   console.log('Pending mail id list ', mailIdList);
   console.log('Pending mail id length', mailIdList.length);
@@ -62,19 +65,20 @@ async function myExpenseFunction() {
       textToExtractFrom = extractPlainTextFromHtml(rawContent);
     }
 
-    var matchedBankDisplayName = findEmailParseBankMatch(textToExtractFrom, emailParseBanks);
+    const matchedBankDisplayName = findEmailParseBankMatch(textToExtractFrom, emailParseBanks);
     console.log("Sender ", getMailSenderReceiver(res).senderEmail);
     
     if (matchedBankDisplayName) {
 
       console.log('-> ' + matchedBankDisplayName + ' detected valid bank. Sending to Gemini ...');
 
-      var geminiResponse = callGemini(textToExtractFrom, GEMINI_API_KEY);
-      var validatedExpense = validateExpense(geminiResponse, textToExtractFrom, GEMINI_API_KEY);
+      const emailSubject = getMailSubject(res);
+      const geminiResponse = callGemini(textToExtractFrom, emailSubject, GEMINI_API_KEY);
+      const validatedExpense = validateExpense(geminiResponse, textToExtractFrom, emailSubject, GEMINI_API_KEY);
 
       if (validatedExpense) {
         console.log('-> Validated expense:', JSON.stringify(validatedExpense));
-        addExpense(res, currentMailId, validatedExpense, accessToken);
+        addExpense(res, currentMailId, validatedExpense, accessToken, vendorTagList);
       } else {
         console.log('-> No valid expense after Gemini + validation (or not an expense).');
         console.log('Snippet ', textToExtractFrom);
@@ -103,12 +107,11 @@ async function myExpenseFunction() {
  *
  * @param {*} geminiBody - First Gemini parse result (may be null if not an expense).
  * @param {string} emailText - Original email text for a single retry.
+ * @param {string} emailSubject - Email subject line (passed to Gemini on retry).
  * @param {string} apiKey - Gemini API key.
  * @returns {{cost: number, costType: string, vendor: string}|null}
  */
-function validateExpense(geminiBody, emailText, apiKey) {
-  console.log('-> validateExpense (1st) JSON:', JSON.stringify(geminiBody));
-
+function validateExpense(geminiBody, emailText, emailSubject, apiKey) {
   if (geminiBody === null) {
     return null;
   }
@@ -118,8 +121,7 @@ function validateExpense(geminiBody, emailText, apiKey) {
   }
 
   console.warn('-> validateExpense: invalid shape; retrying callGemini once');
-  var second = callGemini(emailText, apiKey);
-  console.log('-> validateExpense (2nd) JSON:', JSON.stringify(second));
+  const second = callGemini(emailText, emailSubject, apiKey);
 
   if (second === null) {
     return null;
@@ -129,7 +131,7 @@ function validateExpense(geminiBody, emailText, apiKey) {
     return normalizeGeminiExpense(second);
   }
 
-  console.error('-> validateExpense: still invalid after retry');
+  console.error('-> validateExpense: still invalid after retry ', JSON.stringify(second));
   return null;
 }
 
@@ -151,19 +153,19 @@ function isValidExpenseGeminiShape(o) {
     return false;
   }
 
-  var costNum = Number(o.cost);
+  const costNum = Number(o.cost);
   if (isNaN(costNum) || costNum <= 0) {
     console.warn('validateExpense: cost must be a positive number');
     return false;
   }
 
-  var ct = String(o.costType).toLowerCase().trim();
+  const ct = String(o.costType).toLowerCase().trim();
   if (ct !== 'debit' && ct !== 'credit') {
     console.warn('validateExpense: costType must be debit or credit');
     return false;
   }
 
-  var vendorStr = o.vendor === null || o.vendor === undefined ? '' : String(o.vendor).trim();
+  const vendorStr = o.vendor === null || o.vendor === undefined ? '' : String(o.vendor).trim();
   if (!vendorStr) {
     console.warn('validateExpense: vendor must be a non-empty string');
     return false;
@@ -174,13 +176,14 @@ function isValidExpenseGeminiShape(o) {
 
 /**
  * @param {object} o
- * @returns {{cost: number, costType: string, vendor: string}}
+ * @returns {{cost: number, costType: string, vendor: string, type: string}}
  */
 function normalizeGeminiExpense(o) {
   return {
     cost: Number(Number(o.cost).toFixed(2)),
     costType: String(o.costType).toLowerCase().trim(),
     vendor: String(o.vendor).trim(),
+    type: String(o.type).toLowerCase().trim(),
   };
 }
 
@@ -189,11 +192,20 @@ function normalizeGeminiExpense(o) {
  *
  * @param {object} gmailMessage - Gmail Users.Messages resource (for date + user).
  * @param {string} mailId - Gmail message id (mailId in app).
- * @param {{cost: number, costType: string, vendor: string}} validatedGemini
+ * @param {{cost: number, costType: string, vendor: string, type?: string}} validatedGemini
  * @param {string} accessToken - OAuth token for cloud function.
+ * @param {Array<{vendor?: string, tag?: string}>} vendorTagList - Firestore vendorTag docs for tagging.
  */
-function addExpense(gmailMessage, mailId, validatedGemini, accessToken) {
-  var mailDate = Date.now();
+function addExpense(gmailMessage, mailId, validatedGemini, accessToken, vendorTagList) {
+  const cost = validatedGemini.cost;
+  let vendor = validatedGemini.vendor == null ? null : String(validatedGemini.vendor).trim();
+
+  if (cost == null || vendor === null || vendor === '') {
+    console.log('-> Failed to extract valid cost or vendor from snippet');
+    return;
+  }
+
+  let mailDate = Date.now();
   if (gmailMessage && gmailMessage.internalDate !== undefined && gmailMessage.internalDate !== null) {
     mailDate = Number(gmailMessage.internalDate);
     if (isNaN(mailDate)) {
@@ -201,31 +213,57 @@ function addExpense(gmailMessage, mailId, validatedGemini, accessToken) {
     }
   }
 
-  var expense = getExpense(mailDate, 'email', mailId);
-  expense.cost = validatedGemini.cost;
+  const expense = getExpense(mailDate, mailId);
   expense.costType = validatedGemini.costType;
-  expense.vendor = validatedGemini.vendor;
+  expense.cost = Number(cost);
+
+  const upiPattern = /^([^\s@]+@[^\s@]+)\s+(.+)$/;
+  const upiMatch = vendor.match(upiPattern);
+
+  if (upiMatch && upiMatch[1].trim().length !== 0 && upiMatch[2].trim().length !== 0) {
+    const upiId = upiMatch[1].trim();
+    const name = upiMatch[2].trim();
+    vendor = `${name} ${upiId}`;
+  }
+
+  expense.vendor = vendor.toUpperCase().substring(0, 100);
+  expense.user = extractUsername(getMailSenderReceiver(gmailMessage).receiverEmail);
+
+  const tagList = Array.isArray(vendorTagList) ? vendorTagList : [];
+  const tagObj = tagList.find(function (entry) {
+    if (!entry || entry.vendor == null) {
+      return false;
+    }
+    return expense.vendor === String(entry.vendor).trim().toUpperCase().substring(0, 100);
+  });
+  if (tagObj) {
+    expense.tag = tagObj.tag;
+  }
+
+  expense.type = validatedGemini.type;
   expense.operation = 'add';
 
-  var sr = getMailSenderReceiver(gmailMessage);
-  expense.user = sr.receiverEmail || Session.getActiveUser().getEmail() || '';
+  console.log('-> addExpense payload:', JSON.stringify(expense));
+  const result = cloudAddExpense(expense, accessToken);
+  console.log('-> addExpense cloud response:', JSON.stringify(result));
 
-  console.log('-> addExpense Firestore payload:', JSON.stringify(expense));
-  // var result = cloudAddExpense(expense, accessToken);
-  // console.log('-> addExpense cloud response:', JSON.stringify(result));
+  const typeLabel = (validatedGemini.type && String(validatedGemini.type)) || 'expense';
+  console.log('-> ', typeLabel.toUpperCase(), ' cost: ', expense.cost);
+  console.log('-> ', typeLabel.toUpperCase(), ' vendor: ', expense.vendor);
+  console.log('-> ', typeLabel.toUpperCase(), ' expense: ', expense);
 }
 
 function findEmailParseBankMatch(text, banks) {
   if (!text || !banks || !banks.length) {
     return null;
   }
-  var haystack = text.toUpperCase();
-  for (var i = 0; i < banks.length; i++) {
-    var entry = banks[i];
-    var phrases = entry.matchStrings || [];
-    var display = entry.displayName || '';
-    for (var j = 0; j < phrases.length; j++) {
-      var p = String(phrases[j]).trim().toUpperCase();
+  const haystack = text.toUpperCase();
+  for (let i = 0; i < banks.length; i++) {
+    const entry = banks[i];
+    const phrases = entry.matchStrings || [];
+    const display = entry.displayName || '';
+    for (let j = 0; j < phrases.length; j++) {
+      const p = String(phrases[j]).trim().toUpperCase();
       if (p && haystack.indexOf(p) !== -1) {
         return display || 'Bank';
       }
@@ -238,14 +276,18 @@ function findEmailParseBankMatch(text, banks) {
 /**
  * Corrected naming for Google's REST API (camelCase)
  */
-function callGemini(text, apiKey) {
+function callGemini(text, subject, apiKey) {
   // 1. Switch to v1beta for better support with preview models
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
   const prompt = `Analyze this email and return a JSON object.
     Keys: "cost" (number), "costType" ("debit" or "credit"), "vendor" (name or UPI ID), "type" (upi, credit-card, e-mandate etc.).
-    If it is not an expense, return null.
+    Note: usually if it's upi, you will see upi id like abc@ybl, xyz@paytm, etc
+    Note: if it's credit card, you see text like "Credit Card ending 1234"
     
+    IMPORTANT: If it is not an expense mail, return null.
+    
+    Email Subject: ${subject}
     Email: ${text}`;
 
   const payload = {
@@ -329,18 +371,6 @@ const extractCostFromSnippet = (snippet, costRegexPatterns) => {
   });
 };
 
-/**
- * Extracts vendor information from an email snippet using regex patterns
- *
- * @param {string} snippet - The email snippet to extract vendor from
- * @param {string[]} vendorRegexPatterns - Array of regex patterns to try
- * @returns {string|null} - The extracted vendor as a string, or null if not found
- */
-const extractVendorFromSnippet = (snippet, vendorRegexPatterns) => {
-  return applyRegexPatterns(snippet, vendorRegexPatterns, (match) => {
-    return match && match.trim() !== '';
-  });
-};
 
 
 /**
@@ -358,6 +388,24 @@ function extractEmailAddress(emailString) {
   return emailString.trim().toLowerCase();
 }
 
+
+/**
+ * @param {*} res - Gmail Users.Messages resource
+ * @returns {string}
+ */
+function getMailSubject(res) {
+  if (!res || !res.payload || !res.payload.headers) {
+    return '';
+  }
+  const headers = res.payload.headers;
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    if (h && String(h.name).toLowerCase() === 'subject') {
+      return h.value != null ? String(h.value) : '';
+    }
+  }
+  return '';
+}
 
 /**
  * Retrieves the sender and receiver email addresses from a Gmail Message object.
@@ -422,16 +470,15 @@ function extractUsername(emailAddress) {
 /**
  * Creates an expense object with default values.
  */
-const getExpense = (date, type, mailId) => {
+const getExpense = (date, mailId) => {
   return {
     cost: 0,
-    costType: 'debit',
+    costType: null,
     vendor: null,
     tag: null,
-    type,
+    type: null,
     date,
     modifiedDate: Date.now(),
-    user: '',
     mailId,
 
   };
