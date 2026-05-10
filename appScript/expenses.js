@@ -96,12 +96,6 @@ async function myExpenseFunction() {
 }
 
 /**
- * Returns displayName for the first bank whose matchStrings appear in text (case-insensitive).
- * @param {string} text
- * @param {Array<{displayName?: string, matchStrings?: string[]}>} banks
- * @returns {string|null}
- */
-/**
  * Validates Gemini JSON for a single expense. Logs each candidate object.
  * Retries callGemini once if the first body fails sanity checks.
  *
@@ -133,58 +127,6 @@ function validateExpense(geminiBody, emailText, emailSubject, apiKey) {
 
   console.error('-> validateExpense: still invalid after retry ', JSON.stringify(second));
   return null;
-}
-
-/**
- * @param {*} o
- * @returns {boolean}
- */
-function isValidExpenseGeminiShape(o) {
-  if (o === null || o === undefined) {
-    return false;
-  }
-  if (typeof o !== 'object' || Array.isArray(o)) {
-    return false;
-  }
-  if (!Object.prototype.hasOwnProperty.call(o, 'cost') ||
-      !Object.prototype.hasOwnProperty.call(o, 'costType') ||
-      !Object.prototype.hasOwnProperty.call(o, 'vendor')) {
-    console.warn('validateExpense: missing cost, costType, or vendor');
-    return false;
-  }
-
-  const costNum = Number(o.cost);
-  if (isNaN(costNum) || costNum <= 0) {
-    console.warn('validateExpense: cost must be a positive number');
-    return false;
-  }
-
-  const ct = String(o.costType).toLowerCase().trim();
-  if (ct !== 'debit' && ct !== 'credit') {
-    console.warn('validateExpense: costType must be debit or credit');
-    return false;
-  }
-
-  const vendorStr = o.vendor === null || o.vendor === undefined ? '' : String(o.vendor).trim();
-  if (!vendorStr) {
-    console.warn('validateExpense: vendor must be a non-empty string');
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * @param {object} o
- * @returns {{cost: number, costType: string, vendor: string, type: string}}
- */
-function normalizeGeminiExpense(o) {
-  return {
-    cost: Number(Number(o.cost).toFixed(2)),
-    costType: String(o.costType).toLowerCase().trim(),
-    vendor: String(o.vendor).trim(),
-    type: String(o.type).toLowerCase().trim(),
-  };
 }
 
 /**
@@ -243,35 +185,13 @@ function addExpense(gmailMessage, mailId, validatedGemini, accessToken, vendorTa
   expense.type = validatedGemini.type;
   expense.operation = 'add';
 
-  console.log('-> addExpense payload:', JSON.stringify(expense));
-  const result = cloudAddExpense(expense, accessToken);
-  console.log('-> addExpense cloud response:', JSON.stringify(result));
+  cloudAddExpense(expense, accessToken);
 
   const typeLabel = (validatedGemini.type && String(validatedGemini.type)) || 'expense';
   console.log('-> ', typeLabel.toUpperCase(), ' cost: ', expense.cost);
   console.log('-> ', typeLabel.toUpperCase(), ' vendor: ', expense.vendor);
   console.log('-> ', typeLabel.toUpperCase(), ' expense: ', expense);
 }
-
-function findEmailParseBankMatch(text, banks) {
-  if (!text || !banks || !banks.length) {
-    return null;
-  }
-  const haystack = text.toUpperCase();
-  for (let i = 0; i < banks.length; i++) {
-    const entry = banks[i];
-    const phrases = entry.matchStrings || [];
-    const display = entry.displayName || '';
-    for (let j = 0; j < phrases.length; j++) {
-      const p = String(phrases[j]).trim().toUpperCase();
-      if (p && haystack.indexOf(p) !== -1) {
-        return display || 'Bank';
-      }
-    }
-  }
-  return null;
-}
-
 
 /**
  * Corrected naming for Google's REST API (camelCase)
@@ -285,7 +205,7 @@ function callGemini(text, subject, apiKey) {
     Note: usually if it's upi, you will see upi id like abc@ybl, xyz@paytm, etc
     Note: if it's credit card, you see text like "Credit Card ending 1234"
     
-    IMPORTANT: If it is not an expense mail, return null.
+    IMPORTANT: If it is not an expense or transaction mail from bank, return null.
     
     Email Subject: ${subject}
     Email: ${text}`;
@@ -328,143 +248,6 @@ function callGemini(text, subject, apiKey) {
     console.error('Error parsing Gemini response:', e.toString());
   }
   return null;
-}
-
-// --- KEEP YOUR EXISTING findBody, base64Decode, extractPlainTextFromHtml, etc. ---
-
-/**
- * Applies regex patterns to a string and returns the first valid match
- *
- * @param {string} snippet - The text to apply regex patterns to
- * @param {string[]} regexPatterns - Array of regex patterns to try
- * @param {function} validationFn - Function to validate the match
- * @returns {string|null} - The first valid match or null if no match found
- */
-const applyRegexPatterns = (snippet, regexPatterns, validationFn) => {
-  for (const pattern of regexPatterns) {
-    try {
-      const match = snippet.match(new RegExp(pattern));
-      if (match && match[1]) {
-        const result = match[1];
-        if (validationFn(result)) {
-          return result;
-        }
-      }
-    } catch (regexError) {
-      console.log(`-> Regex failed: ${pattern}`, regexError.message);
-    }
-  }
-  return null;
-};
-
-/**
- * Extracts cost information from an email snippet using regex patterns
- *
- * @param {string} snippet - The email snippet to extract cost from
- * @param {string[]} costRegexPatterns - Array of regex patterns to try
- * @returns {string|null} - The extracted cost as a string, or null if not found
- */
-const extractCostFromSnippet = (snippet, costRegexPatterns) => {
-  return applyRegexPatterns(snippet, costRegexPatterns, (match) => {
-    const parsedCost = Number(match);
-    return !isNaN(parsedCost) && parsedCost > 0;
-  });
-};
-
-
-
-/**
- * Extracts the clean email address from a string that may contain a display name
- * (e.g., "HDFC Bank InstaAlerts <alerts@hdfcbank.net>").
- * @param {string} emailString The full email string from the header.
- * @returns {string} The clean email address.
- */
-function extractEmailAddress(emailString) {
-  if (!emailString) return '';
-  const match = emailString.match(/<([^>]+)>/);
-  if (match) {
-    return match[1].trim();
-  }
-  return emailString.trim().toLowerCase();
-}
-
-
-/**
- * @param {*} res - Gmail Users.Messages resource
- * @returns {string}
- */
-function getMailSubject(res) {
-  if (!res || !res.payload || !res.payload.headers) {
-    return '';
-  }
-  const headers = res.payload.headers;
-  for (let i = 0; i < headers.length; i++) {
-    const h = headers[i];
-    if (h && String(h.name).toLowerCase() === 'subject') {
-      return h.value != null ? String(h.value) : '';
-    }
-  }
-  return '';
-}
-
-/**
- * Retrieves the sender and receiver email addresses from a Gmail Message object.
- * @returns {object} An object containing the sender and receiver emails.
- * @param res
- */
-function getMailSenderReceiver(res) {
-
-  let sender = '';
-  let receiver = '';
-
-  if (res && res.payload && res.payload.headers) {
-    let headers = res.payload.headers;
-
-    for (let i = 0; i < headers.length; i++) {
-      let header = headers[i];
-
-      if (header.name === 'From') {
-        sender = header.value;
-      }
-
-      if (header.name === 'To') {
-        receiver = header.value;
-      }
-
-      if (sender && receiver) {
-        break;
-      }
-    }
-  }
-
-  const senderEmail = extractEmailAddress(sender);
-  const receiverEmail = extractEmailAddress(receiver);
-
-  return {
-    sender,
-    receiver,
-    senderEmail,
-    receiverEmail
-  };
-}
-
-/**
- * Extracts the username (the part before the '@') from a full email address.
- * * For example: "RUSHI743@gmail.com" -> "RUSHI743"
- *
- * @param {string} emailAddress The full email address string.
- * @returns {string} The extracted username, or an empty string if the input is invalid.
- */
-function extractUsername(emailAddress) {
-  if (!emailAddress || typeof emailAddress !== 'string') {
-    Logger.log('Error: Invalid input provided to extractUsername.');
-    return '';
-  }
-  const atIndex = emailAddress.indexOf('@');
-  if (atIndex !== -1) {
-    return emailAddress.substring(0, atIndex).trim().toLowerCase();
-  }
-  return emailAddress.trim().toLowerCase();
 }
 
 /**

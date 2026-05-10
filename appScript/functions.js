@@ -107,3 +107,182 @@ const callCloudFunction = (functionName, payload, accessToken) => {
   }
   return null;
 };
+
+
+/**
+ * Extracts the clean email address from a string that may contain a display name
+ * (e.g., "HDFC Bank InstaAlerts <alerts@hdfcbank.net>").
+ * @param {string} emailString The full email string from the header.
+ * @returns {string} The clean email address.
+ */
+function extractEmailAddress(emailString) {
+  if (!emailString) return '';
+  const match = emailString.match(/<([^>]+)>/);
+  if (match) {
+    return match[1].trim();
+  }
+  return emailString.trim().toLowerCase();
+}
+
+
+/**
+ * @param {*} res - Gmail Users.Messages resource
+ * @returns {string}
+ */
+function getMailSubject(res) {
+  if (!res || !res.payload || !res.payload.headers) {
+    return '';
+  }
+  const headers = res.payload.headers;
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    if (h && String(h.name).toLowerCase() === 'subject') {
+      return h.value != null ? String(h.value) : '';
+    }
+  }
+  return '';
+}
+
+/**
+ * Retrieves the sender and receiver email addresses from a Gmail Message object.
+ * @param {*} res
+ * @returns {object} An object containing the sender and receiver emails.
+ */
+function getMailSenderReceiver(res) {
+
+  let sender = '';
+  let receiver = '';
+
+  if (res && res.payload && res.payload.headers) {
+    let headers = res.payload.headers;
+
+    for (let i = 0; i < headers.length; i++) {
+      let header = headers[i];
+
+      if (header.name === 'From') {
+        sender = header.value;
+      }
+
+      if (header.name === 'To') {
+        receiver = header.value;
+      }
+
+      if (sender && receiver) {
+        break;
+      }
+    }
+  }
+
+  const senderEmail = extractEmailAddress(sender);
+  const receiverEmail = extractEmailAddress(receiver);
+
+  return {
+    sender,
+    receiver,
+    senderEmail,
+    receiverEmail
+  };
+}
+
+/**
+ * Extracts the username (the part before the '@') from a full email address.
+ * For example: "RUSHI743@gmail.com" -> "RUSHI743"
+ *
+ * @param {string} emailAddress The full email address string.
+ * @returns {string} The extracted username, or an empty string if the input is invalid.
+ */
+function extractUsername(emailAddress) {
+  if (!emailAddress || typeof emailAddress !== 'string') {
+    Logger.log('Error: Invalid input provided to extractUsername.');
+    return '';
+  }
+  const atIndex = emailAddress.indexOf('@');
+  if (atIndex !== -1) {
+    return emailAddress.substring(0, atIndex).trim().toLowerCase();
+  }
+  return emailAddress.trim().toLowerCase();
+}
+
+
+/**
+ * @param {*} o
+ * @returns {boolean}
+ */
+function isValidExpenseGeminiShape(o) {
+  if (o === null || o === undefined) {
+    return false;
+  }
+  if (typeof o !== 'object' || Array.isArray(o)) {
+    return false;
+  }
+  if (!Object.prototype.hasOwnProperty.call(o, 'cost') ||
+      !Object.prototype.hasOwnProperty.call(o, 'costType') ||
+      !Object.prototype.hasOwnProperty.call(o, 'vendor')) {
+    console.warn('validateExpense: missing cost, costType, or vendor');
+    return false;
+  }
+
+  const costNum = Number(o.cost);
+  if (isNaN(costNum) || costNum <= 0) {
+    console.warn('validateExpense: cost must be a positive number');
+    return false;
+  }
+
+  const ct = String(o.costType).toLowerCase().trim();
+  if (ct !== 'debit' && ct !== 'credit') {
+    console.warn('validateExpense: costType must be debit or credit');
+    return false;
+  }
+
+  const vendorStr = o.vendor === null || o.vendor === undefined ? '' : String(o.vendor).trim();
+  if (!vendorStr) {
+    console.warn('validateExpense: vendor must be a non-empty string');
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * @param {object} o
+ * @returns {{cost: number, costType: string, vendor: string, type: string|null}}
+ */
+function normalizeGeminiExpense(o) {
+  const rawType = o.type;
+  const type =
+    rawType != null && String(rawType).trim() !== ''
+      ? String(rawType).toLowerCase().trim()
+      : null;
+
+  return {
+    cost: Number(Number(o.cost).toFixed(2)),
+    costType: String(o.costType).toLowerCase().trim(),
+    vendor: String(o.vendor).trim(),
+    type,
+  };
+}
+
+/**
+ * Returns displayName for the first bank whose matchStrings appear in text (case-insensitive).
+ * @param {string} text
+ * @param {Array<{displayName?: string, matchStrings?: string[]}>} banks
+ * @returns {string|null}
+ */
+function findEmailParseBankMatch(text, banks) {
+  if (!text || !banks || !banks.length) {
+    return null;
+  }
+  const haystack = text.toUpperCase();
+  for (let i = 0; i < banks.length; i++) {
+    const entry = banks[i];
+    const phrases = entry.matchStrings || [];
+    const display = entry.displayName || '';
+    for (let j = 0; j < phrases.length; j++) {
+      const p = String(phrases[j]).trim().toUpperCase();
+      if (p && haystack.indexOf(p) !== -1) {
+        return display || 'Bank';
+      }
+    }
+  }
+  return null;
+}
