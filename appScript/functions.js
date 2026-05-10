@@ -15,7 +15,7 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
  * @param {string} accessToken - The OAuth2 access token for authorization.
  * @returns {object|string|null} - The response from the cloud function.
  */
-const addExpense = (expense, accessToken) => {
+const cloudAddExpense = (expense, accessToken) => {
   return callCloudFunction('addExpenseData', expense, accessToken);
 };
 

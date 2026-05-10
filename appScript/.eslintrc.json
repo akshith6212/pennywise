@@ -47,7 +47,7 @@
     "getAllDoc": "readonly",
     "getOneDoc": "readonly",
     "setOneDoc": "readonly",
-    "addExpense": "readonly",
+    "cloudAddExpense": "readonly",
     "findBody": "readonly",
     "extractPlainTextFromHtml": "readonly",
     "PROJECT_REGION": "readonly",
