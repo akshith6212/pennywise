@@ -15,6 +15,13 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
 /* eslint-disable */
 
 async function myExpenseFunction() {
+  const now = new Date();
+  const istHour = parseInt(Utilities.formatDate(now, 'Asia/Kolkata', 'H'), 10);
+  if (istHour < 9 || istHour > 22) {
+    console.log('myExpenseFunction: skipped — outside IST window 09:00–22:00. IST');
+    return;
+  }
+
   const Config = 'config';
   const LastGmailId = 'lastGmailId';
   const VendorTag = 'vendorTag';
