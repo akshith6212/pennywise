@@ -1,10 +1,12 @@
 <div align="center">
   <br/>
-  <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px;">
-    <img src="public/logo_low_res.png" alt="Pennywise Logo" width="150" height="150" />
-    <span style="display: inline-flex; align-items: center; justify-content: center; width: 150px; min-width: 150px; height: 150px; font-size: 72px; font-weight: 700; line-height: 1; user-select: none;" aria-hidden="true">×</span>
-    <img src="public/gemini_logo.png" alt="Google Gemini" width="150" height="150" />
-  </div>
+  <table align="center">
+    <tr>
+      <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/logo_low_res.png" alt="Pennywise Logo" width="150" height="150" /></td>
+      <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/cross2.png" alt="" width="150" height="150" /></td>
+      <td align="center" valign="middle" style="padding: 0 6px;"><img src="public/gemini_logo.png" alt="Google Gemini" width="150" height="150" /></td>
+    </tr>
+  </table>
   <h1>Pennywise</h1>
   <h3>Track, Analyze, and Master Your Personal Finances</h3>
 </div>
