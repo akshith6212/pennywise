@@ -18,6 +18,8 @@ First, complete the setup instructions in the [Setup Documentation](SETUP.md).
     REACT_APP_FIREBASE_STORAGE_BUCKET=your-storage-bucket
     REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
     REACT_APP_FIREBASE_APP_ID=your-app-id
+    # Optional, for Firebase Analytics if you enable it in code:
+    # REACT_APP_FIREBASE_MEASUREMENT_ID=G-xxxxxxxxxx
     ```
 
 1.  **Clone the Repository**:
@@ -50,13 +52,14 @@ To deploy the Firebase functions and hosting, follow these steps:
     firebase deploy --only hosting
     ```
 
-### AppScript Development
+### AppScript development
 
 For developing Google Apps Script code, you have two main options:
 
 1.  **Using `clasp`**:
     *   `clasp` is a command-line tool that lets you develop your Apps Script projects locally.
     *   You can write code in your favorite editor and then use `clasp push` to upload the code to your script project.
+    *   Create **`appScript/env.js`** locally (see [SETUP.md](SETUP.md)): it defines `PROJECT_ID`, `PROJECT_REGION`, and `GEMINI_API_KEY` (typically loaded from **Script properties**). The file is **gitignored**; it must exist on your machine before you push.
     *   For `clasp push` to work, you need a `.clasp.json` file in the `appScript/` directory. This file links your local code to the correct Google Apps Script project.
     *   The `.clasp.json` file should contain the `scriptId` of your project, which you can find in the Apps Script editor under "Project Settings."
         ```json
@@ -129,15 +132,18 @@ The React web app is designed to be fast and efficient by minimizing direct quer
 
 This "delta sync" approach ensures the app stays up-to-date without re-downloading the entire database, saving bandwidth and reducing costs.
 
-#### 2. Automated Expense Tracking: AppScript and Cloud Functions
+#### 2. Automated Expense Tracking: Apps Script, Gemini, and Cloud Functions
 
-Pennywise automates expense tracking by scanning your Gmail for transaction emails. This process involves Google Apps Script and Firebase Cloud Functions.
+Pennywise automates expense tracking by combining Gmail, **Google Gemini**, and Firebase Cloud Functions. There is **no** fixed regex-per-bank pipeline in the main flow—the model interprets each candidate email’s text.
 
-1.  **Google Apps Script**: A script running on Google's servers (in the `appScript/` folder) periodically scans your Gmail account for emails from supported banks.
-2.  **Email Parsing**: When it finds a relevant email, it parses the content to extract key details like the vendor, amount, and date.
-3.  **Cloud Functions**: The script then sends this structured data to a secure **Cloud Function** (in the `functions/` folder). This function is responsible for processing the data and writing it to your Firestore database.
+1.  **Bank list in Firestore**: The web app stores `config/emailParseBanks` with an array of `{ id, displayName, matchStrings[] }`. **Settings → Banks** (`ManageBanks.tsx`) edits this list. Match strings are simple substrings that must appear in the email body/snippet (case-insensitive) before the message is sent to Gemini—think of them as fingerprints for “this is my bank’s alert template.”
+2.  **Google Apps Script** (`appScript/`): Runs on a time-driven trigger (see `trigger.js`). It loads `emailParseBanks` via the `getOneDoc` Cloud Function, reads recent Gmail messages, and derives plain text (snippet + HTML body via `utility.js`).
+3.  **Gemini**: For each message that matches at least one bank entry, the script calls the **Generative Language API** (`callGemini` in `expenses.js`) with subject + body and expects JSON (`cost`, `costType`, `vendor`, `type`, or `null` if not a transaction). Validation helpers live in `functions.js` (`isValidExpenseGeminiShape`, `normalizeGeminiExpense`).
+4.  **Cloud Functions** (`functions/`): `addExpenseData` persists the expense to Firestore; `getOneDoc` / `setOneDoc` / `getAllDoc` sync config and vendor tags. The script authenticates with the same OAuth model described in [SETUP.md](SETUP.md).
 
-This setup allows for secure and automated data entry without requiring the web app to have broad access to your Gmail account.
+**Secrets**: `GEMINI_API_KEY` and Firebase project routing (`PROJECT_ID`, `PROJECT_REGION`) are **not** in the React `.env`. They are provided to Apps Script via **`appScript/env.js`** (gitignored) and/or **Script properties**—see [SETUP.md](SETUP.md).
+
+This design keeps Gmail access in the script you own, while the React app only talks to Firebase.
 
 #### 3. Security: A Multi-Layered Approach
 
@@ -159,4 +165,4 @@ The React application is divided into several key sections, each serving a speci
 
 *   **Budget**: This section is for managing your financial goals. You can set monthly budgets for different expense categories and track your progress to see how your spending aligns with your budget.
 
-*   **Settings**: Here, you can customize the application to your preferences. This includes managing the tags used for categorizing expenses, viewing your user profile, and configuring other app-related settings.
+*   **Settings**: Tags, vendor–tag maps, profile, and **Banks** (dynamic `emailParseBanks` for Gmail automation).

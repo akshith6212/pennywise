@@ -1,9 +1,9 @@
 <div align="center">
   <br/>
   <p>
-    <img src="public/gemini-icon.webp" alt="Google Gemini" width="150" />
-    &nbsp;<strong>·</strong>&nbsp;
     <img src="public/logo_low_res.png" alt="Pennywise Logo" width="150" />
+    &nbsp;<strong>·</strong>&nbsp;
+    <img src="public/gemini_logo.png" alt="Google Gemini" width="150" />
   </p>
   <h1>Pennywise</h1>
   <h3>Track, Analyze, and Master Your Personal Finances</h3>
@@ -24,12 +24,9 @@
 </p>
 
 ---
-> **Disclaimer:** Currently, Pennywise only supports transaction tracking for the following:
-> * HDFC UPI - credit & debit transactions.
-> * HDFC Credit card - only debit transactions.
-> * HDFC E-mandate transactions.
->
-> We are actively working on expanding support to other banks' email and transaction types.
+> **How email import works:** Transaction emails are **not** parsed with hard-coded bank regexes. Google **Gemini** reads the message (subject + body text the script can access) and returns structured fields (amount, debit/credit, vendor, payment type).  
+> **Bank list (filter):** In **Settings → Banks** you add one or more entries with a display name and **match strings** (phrases that appear in that bank’s alert emails). The Apps Script only sends an email to Gemini if the plain text matches one of your banks—this cuts noise and API cost.  
+> **Practical limit:** Your bank or card issuer should send **consistent** alert layouts for the transactions you care about. If formats vary wildly, Gemini may occasionally mis-read a field; you can adjust prompts or bank strings over time. Any institution whose alerts you can fingerprint with match strings is a candidate—not limited to a single bank brand.
 
 ## License
 
@@ -46,7 +43,8 @@ a user-friendly experience with robust features, including offline support and s
 ## Features
 
 * 📊 **Expense Tracking**: Easily add, edit, and manage your daily expenses with detailed inputs.
-* 📧 **Gmail Integration**: Effortlessly scan your emails to automatically identify and import expense information.
+* 📧 **Gmail + Gemini**: Periodically scan Gmail for messages that match **banks you configure**; **Gemini** extracts amount, vendor, and payment type from the email text.
+* 🏦 **Configurable banks**: Under **Settings → Banks**, add or remove banks and **match strings** so only relevant sender/templates are sent to the model.
 * 🏷️ **Tagging System**: Categorize expenses with custom tags for flexible and granular organization.
 * 🤖 **Auto Tagging**: Cloud functions automatically apply tags to new expenses based on previously user-marked
   vendor-tag associations.
@@ -108,9 +106,7 @@ gives you complete control over your data and infrastructure. Here’s what make
 * **🔐 Secure Authentication**: We use Google OAuth for authentication, which provides a secure and reliable way to log
   in to your account without us ever seeing or storing your password.
 
-* **🔑 Minimal Permissions**: Pennywise requests only the necessary permissions to function. For instance, the Gmail
-  integration is designed to only access emails related to financial transactions, ensuring the privacy of your personal
-  correspondence.
+* **🔑 Minimal Permissions**: The web app uses Google Sign-In; the **Apps Script** add-on uses **Gmail read-only** to list and read messages. The script filters messages using **your** bank match strings, then calls **Gemini** and your **Cloud Functions**—it does not broad-scan third parties beyond what you configure.
 
 * **⚙️ You Control Updates**: Since you host the application, you are in full control of when and how you update it. You
   will never be forced into an update that changes the functionality or privacy in a way you don't agree with.
@@ -203,6 +199,14 @@ Pennywise is built using a modern front-end architecture with the following key 
   - Changes are saved to both IndexedDB and Firebase
   - Data synchronization happens automatically when online
 
+### Gmail automation (Apps Script + Gemini)
+
+1. **Bank routing config** is stored in Firestore as `config/emailParseBanks` (`banks[]` with `displayName` + `matchStrings`). The React app **Settings → Banks** edits this list.
+2. **Apps Script** (`appScript/`) runs on a schedule (e.g. hourly). It loads the latest bank list via your **Cloud Function** `getOneDoc`, fetches recent Gmail messages, and builds plain text from snippets/HTML.
+3. If the text contains any configured **match string** (case-insensitive), the message is a candidate. The script sends **subject + body text** to the **Gemini API** with a JSON schema style prompt.
+4. A validated object (cost, `costType`, vendor, `type`) is posted to **`addExpenseData`**, which writes to Firestore. **Vendor tags** you define in the app can still be applied when the normalized vendor string matches.
+5. Optional safeguards in script: **IST quiet hours** (skip runs outside the configured daily window) and **Script properties / env** for `GEMINI_API_KEY` and project routing—see [SETUP.md](SETUP.md).
+
 ### Architecture Diagram
 
 ![Architecture Diagram](public/docs/Pennywise.drawio.svg)
@@ -220,11 +224,11 @@ The React application is divided into several key sections, each serving a speci
 *   **Budget**: This section is for managing your financial goals. You can set monthly budgets for different expense categories and track your progress to see how your spending aligns with your budget.
 
 
-*   **Settings**: Here, you can customize the application to your preferences. This includes managing the tags used for categorizing expenses, Already mapped vendor-tag configurations, viewing your user profile, and configuring other app-related settings.
+*   **Settings**: Customize tags, **vendor–tag maps**, your profile, and other options. Use **Banks** (`/setting-banks`) to maintain the list of banks (match strings) that gate which emails are sent to Gemini—add or remove entries as you add accounts or change issuers.
 
 ## Future Roadmap
 
-- [ ] Multiple bank support (We need people with different bank accounts to help us with this)
+- [ ] Per-bank prompt hints or templates (optional tuning on top of Gemini)
 - [ ] Google pub sub integration for real-time event driven updates instead of using AppScript as hourly jobs
 - [ ] Enhancing Insights with more detailed analytics & better graph support grouped by category
 - [ ] Multi-selected expense tagging feature
