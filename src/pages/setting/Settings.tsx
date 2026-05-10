@@ -6,6 +6,7 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
 import React, {useState} from 'react';
 import {Box, Button, Container, Fade, Modal, Paper, Typography} from '@mui/material';
 import {
+  AccountBalance as BanksIcon,
   AutoAwesome as AutoTagIcon,
   Brightness4 as ThemeIcon,
   LocalOffer as TagsIcon,
@@ -157,6 +158,14 @@ const Settings: React.FC = () => {
       icon: <AutoTagIcon/>,
       route: '/auto-tag-expenses',
       color: '#4db6ac'
+    },
+    {
+      id: 'banks',
+      title: 'Banks',
+      subtitle: 'Email parsing: display name & match phrases',
+      icon: <BanksIcon/>,
+      route: '/setting-banks',
+      color: '#26a69a'
     },
     {
       id: 'sign out',

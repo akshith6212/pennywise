@@ -7,6 +7,9 @@ export const EXPENSE_LAST_UPDATE = 'expenseLastUpdate';
 export const TAG_LAST_UPDATE = 'tagLastUpdate';
 export const BUDGET_LAST_UPDATE = 'budgetLastUpdate';
 
+/** IndexedDB config key; mirrors Firestore `config/emailParseBanks` document. */
+export const EMAIL_PARSE_BANKS_CACHE_KEY = 'emailParseBanks';
+
 // Line colors for the chart - Extended to support 15+ different colors
 export const CHART_COLORS = [
   '#FF6B6B',                       // Coral Red

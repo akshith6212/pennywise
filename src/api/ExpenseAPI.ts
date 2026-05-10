@@ -5,12 +5,12 @@ Copyright (c) 2025 rushikc <rushikc.dev@gmail.com>
 
 import {initializeApp} from 'firebase/app';
 import {collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, setDoc, where} from 'firebase/firestore/lite';
-import {BUDGET_LAST_UPDATE, EXPENSE_LAST_UPDATE, TAG_LAST_UPDATE} from '../utility/constants';
+import {BUDGET_LAST_UPDATE, EMAIL_PARSE_BANKS_CACHE_KEY, EXPENSE_LAST_UPDATE, TAG_LAST_UPDATE} from '../utility/constants';
 import {firebaseConfig} from '../firebase/firebase-public';
 import {getDateJsIdFormat, getUnixTimestamp, JSONCopy, sleep} from '../utility/utility';
 import {FinanceIndexDB} from './FinanceIndexDB';
 import {ErrorHandlers} from '../components/ErrorHandlers';
-import {BankConfig, Budget, Expense, VendorTag} from '../Types';
+import {BankConfig, BankEmailParsingEntry, Budget, Expense, VendorTag} from '../Types';
 
 // DocumentDB from Firebase document types
 // eslint-disable-next-line
@@ -56,6 +56,89 @@ const fireStoreDoc = {
 };
 
 export class ExpenseAPI {
+
+  private static readonly EMAIL_PARSE_BANKS_DOC_ID = 'emailParseBanks';
+
+  /**
+   * Reads cached bank config from IndexedDB, then loads Firestore `config/emailParseBanks`.
+   * Updates IndexedDB when the remote doc is newer or missing locally; on Firestore failure,
+   * returns the last cached list if available.
+   */
+  static getEmailParseBankList = async (): Promise<BankEmailParsingEntry[]> => {
+    let parsedCache: { banks: BankEmailParsingEntry[]; modifiedDate: number } | null = null;
+    try {
+      const row = await FinanceIndexDB.getData('config', EMAIL_PARSE_BANKS_CACHE_KEY);
+      if (row?.value != null) {
+        const raw = typeof row.value === 'string' ? row.value : String(row.value);
+        const parsed = JSON.parse(raw) as { banks?: BankEmailParsingEntry[]; modifiedDate?: number };
+        if (Array.isArray(parsed.banks)) {
+          parsedCache = {
+            banks: parsed.banks,
+            modifiedDate: typeof parsed.modifiedDate === 'number' ? parsed.modifiedDate : 0,
+          };
+        }
+      }
+    } catch {
+      // ignore corrupt cache
+    }
+
+    try {
+      const remote = await ExpenseAPI.getOneDoc(ExpenseAPI.EMAIL_PARSE_BANKS_DOC_ID, 'config') as {
+        banks?: BankEmailParsingEntry[];
+        modifiedDate?: number;
+      } | null;
+
+      if (remote === null) {
+        if (parsedCache) {
+          return parsedCache.banks;
+        }
+        const empty: BankEmailParsingEntry[] = [];
+        await FinanceIndexDB.addConfig([{
+          key: EMAIL_PARSE_BANKS_CACHE_KEY,
+          value: JSON.stringify({banks: empty, modifiedDate: 0}),
+        }]);
+        return empty;
+      }
+
+      const remoteBanks = Array.isArray(remote.banks) ? remote.banks : [];
+      const remoteModified = typeof remote.modifiedDate === 'number' ? remote.modifiedDate : 0;
+
+      if (parsedCache && parsedCache.modifiedDate > remoteModified) {
+        return parsedCache.banks;
+      }
+
+      await FinanceIndexDB.addConfig([{
+        key: EMAIL_PARSE_BANKS_CACHE_KEY,
+        value: JSON.stringify({banks: remoteBanks, modifiedDate: remoteModified}),
+      }]);
+      return remoteBanks;
+    } catch (e) {
+      ErrorHandlers.handleApiError(e);
+      if (parsedCache) {
+        return parsedCache.banks;
+      }
+      return [];
+    }
+  };
+
+  /**
+   * Saves bank list to Firestore and IndexedDB (write-through cache).
+   */
+  static updateEmailParseBankList = async (banks: BankEmailParsingEntry[]): Promise<boolean> => {
+    try {
+      const modifiedDate = Date.now();
+      const payload = {banks, modifiedDate};
+      await ExpenseAPI.setOneDoc(ExpenseAPI.EMAIL_PARSE_BANKS_DOC_ID, payload, 'config');
+      await FinanceIndexDB.addConfig([{
+        key: EMAIL_PARSE_BANKS_CACHE_KEY,
+        value: JSON.stringify({banks, modifiedDate}),
+      }]);
+      return true;
+    } catch (e) {
+      ErrorHandlers.handleApiError(e);
+      return false;
+    }
+  };
 
   /**
    * Sets a single document in a specified Firestore collection.

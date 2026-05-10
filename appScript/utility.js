@@ -118,6 +118,11 @@ function extractPlainTextFromHtml(html) {
   text = text.replace(/&trade;/g, '™'); // Trademark symbol
   text = text.replace(/&mdash;/g, '—'); // Em dash
   text = text.replace(/&ndash;/g, '–'); // En dash
+  text = text.replace(/&zwnj;/g, '');
+  text = text.replace(/&zwj;/g, '');
+  text = text.replace(/&rlm;/g, '');
+  text = text.replace(/&lrm;/g, '');
+  text = text.replace(/&bidi;/g, '');
 
   // Handle numeric and hexadecimal entities (e.g., &#x20AC; or &#8364;) - a basic approach
   text = text.replace(/&#(\d+);/g, (match, code) => String.fromCharCode(parseInt(code, 10)));

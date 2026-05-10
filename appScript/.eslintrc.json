@@ -47,12 +47,13 @@
     "getAllDoc": "readonly",
     "getOneDoc": "readonly",
     "setOneDoc": "readonly",
-    "addExpense": "readonly",
+    "cloudAddExpense": "readonly",
     "findBody": "readonly",
     "extractPlainTextFromHtml": "readonly",
     "PROJECT_REGION": "readonly",
     "PROJECT_ID": "readonly",
-    "USER_ID": "readonly"
+    "USER_ID": "readonly",
+    "GEMINI_API_KEY": "readonly"
   },
   "rules": {
     "indent": ["error", 2],

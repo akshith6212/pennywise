@@ -259,6 +259,8 @@ Here’s how you can install Node.js and npm on different operating systems. We 
   REACT_APP_FIREBASE_STORAGE_BUCKET=your-storage-bucket
   REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
   REACT_APP_FIREBASE_APP_ID=your-app-id
+  # Optional, only if you wire Firebase Analytics:
+  # REACT_APP_FIREBASE_MEASUREMENT_ID=G-xxxxxxxxxx
   ```
   - The final `.env` content should look like the image below:
 
@@ -325,16 +327,23 @@ To interact with Firebase services from your terminal, you need to install the F
      - Replace `your-actual-mail@gmail.com` with the actual email address with which the
      Firebase project is running.
 
-  2. **Create the `env.js` file in the appScript folder:**
-     - Create a new file named `env.js` in the `appScript` folder.
-     - Add the following content to the file:
+  2. **Create the `env.js` file in the `appScript` folder (local only; it is gitignored):**
+     - Create `appScript/env.js`. It exposes globals that the Apps Script files expect (`functions.js`, `expenses.js`).
+     - Use the same **Firebase / Cloud Functions region** you deploy to (often `us-central1`).
+     - **Gemini API key**: create a key in [Google AI Studio](https://aistudio.google.com/apikey) (or Google Cloud Console → APIs & Services → Credentials). Restrict the key appropriately; the script calls `generativelanguage.googleapis.com`.
+     - Recommended: store the key in **Apps Script → Project Settings → Script properties** as `GEMINI_API_KEY`, and read it at runtime (so the key is not committed). Example file:
      ```javascript
-     const PROJECT_ID = 'your-project-id'; // Replace with your actual project ID
+     const PROJECT_ID = 'your-firebase-project-id';
      const PROJECT_REGION = 'us-central1';
 
+     /**
+      * Loads Gemini key from Script properties (Project Settings → Script properties → GEMINI_API_KEY).
+      * For quick local tests only, you could assign a string literal—never commit that.
+      */
+     const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
      ```
-     - Replace `your-project-id` with your actual Firebase project ID.
-     - Replace `pennywise` with your user ID. It will be used in the expense JSON in Firestore. You can add your name, nickname, or anything you want to use as a user ID.
+     - After the first `clasp push`, open the script in the browser, go to **Project Settings** (gear) → **Script properties** → **Add row**: property = `GEMINI_API_KEY`, value = your API key.
+     - Replace `your-firebase-project-id` with the same ID as in `.firebaserc`.
 
 
 - **Build web app:**
@@ -490,6 +499,8 @@ To interact with Firebase services from your terminal, you need to install the F
 
     This configuration essentially sets up your Apps Script to securely read your Gmail messages, process expense information, and send it to your Firebase database while running in your timezone with proper error logging.
 
+    **`emailParsingConfig.json`** in `appScript/` is a **legacy, HDFC-oriented sample** from an older regex-based flow. The **current** automation uses **Gemini** plus the **`config/emailParseBanks`** document you edit in the app (**Settings → Banks**). You can ignore or delete the JSON sample locally if you do not need it for reference.
+
 
 7. **Push Local Code to Apps Script:**
    To upload your local code to the newly created Apps Script project, run:
@@ -500,21 +511,16 @@ To interact with Firebase services from your terminal, you need to install the F
    - Enter `yes` or `y` for `✔ Manifest file has been updated. Do you want to push and overwrite? Yes`
 
 
-8. **Run the Apps Script Files:**
+8. **Run the Apps Script files:**
 
-    - Go to the [Google Apps Script](https://script.google.com) website.
-    - Click on the `Pennywise App Script` project you just created.
-    - In the left sidebar, you will see the files `expense.gs` and `trigger.gs`.
-    - Click on `trigger.gs` to open it, then click the **Run** button (▶️) at the top of the editor.
-    - This will prompt you to authorize the script to access your Gmail account.
-    - Authorize the script by selecting your Google account and granting the necessary permissions.
-    - Once you select the email, you will get a warning page. Click on **Advanced** and then click on `Go to Pennywise App Script (unsafe)`.
-    - Select all permissions and click on **Allow**.
-    - This will set up the necessary triggers to fetch emails and add them to Firestore.
-    - After running the script, you should see a message indicating that the triggers have been set up successfully.
-    - Now click on `expense.gs` in the left sidebar to open it.
-    - Click the **Run** button (▶️) to execute the script.
-    - This will fetch the last 100 emails from your Gmail account, scan them for expenses, and if any HDFC expenses are found, it will add them to Firestore.
+    - Open your project in the [Google Apps Script](https://script.google.com) editor (after `clasp push`, filenames may appear as `.gs`; locally they are `trigger.js`, `expenses.js`, `functions.js`, etc.).
+    - Ensure **`env.js`** exists in the project (pushed from your machine) and **Script property `GEMINI_API_KEY`** is set if you use the recommended template above.
+    - Open the **trigger** file (`createTrigger` / `trigger.js`), select **`createTrigger`** in the function dropdown, and click **Run** (▶️).
+    - Complete OAuth: grant Gmail read-only, external URL fetch, and other requested scopes.
+    - If Google shows an “unverified app” screen, use **Advanced** → proceed for your own project.
+    - A successful run registers the hourly trigger for **`myExpenseFunction`** (see `trigger.js`).
+    - Optionally run **`myExpenseFunction`** once manually to test: it only performs work during **09:00–22:00 IST** (quiet hours skip the rest of the logic—see `expenses.js`).
+    - The script loads your **Banks** config from Firestore (`config/emailParseBanks`). Configure banks in the web app first (**Settings → Banks**) so match strings exist; otherwise no messages will be sent to Gemini.
 
 ---
 
@@ -530,15 +536,22 @@ You can now start using the application by navigating to `https://<your-project-
 
 For a more native experience, you can install Pennywise as a Progressive Web App (PWA) directly from Google Chrome on both Android and iOS devices.
 
-### Automatic Expense Tracking
+### Automatic expense tracking
 
-The Google Apps Script you deployed will automatically run every hour. It will fetch new expense information from your Gmail account and securely add it to your Firebase database.
+The Google Apps Script runs on your **time-driven trigger** (e.g. every hour). For each run inside the **IST** window (**09:00–22:00**), it:
 
-### Important Next Steps
+1. Loads **`config/emailParseBanks`** (your **Settings → Banks** list).
+2. Scans recent Gmail messages and builds plain text from each message.
+3. If the text matches any of your **match strings**, calls **Gemini**, validates JSON, and posts expenses via **`addExpenseData`**.
 
-1.  **Configure Tags:** Before you start, navigate to the **Settings** section within the app. You will need to add your own list of tags for categorizing expenses, as this is not pre-populated. This is a one-time setup.
+You are responsible for **Gemini API usage/costs** on your Google Cloud / AI Studio billing.
 
-2.  **Bank Configuration:** Please note that the Configuration feature under Settings is still under development. By default, UPI and credit card expenses will be tracked automatically without any additional configuration.
+### Important next steps
 
+1.  **Configure tags:** In **Settings**, add tags you want for categorization (not pre-populated).
+
+2.  **Configure banks (required for automation):** Open **Settings → Banks**. For each bank or card program that sends transaction emails, add a **display name** and one or more **match strings** (unique phrases that appear in those alerts, e.g. bank name + “debited” or “UPI”). Add several strings if templates differ slightly. The script only sends matching mail to Gemini—too few strings and you may miss mail; too generic and you may include noise.
+
+3.  **Vendor tags (optional):** Map normalized vendor strings to tags in **Settings → Vendor tags**; the script can attach `tag` when it finds a match after Gemini parsing.
 
 Happy expense tracking!
