@@ -1,8 +1,8 @@
 # Pennywise Mobile - Migration Progress Tracker
 
 **Last Updated**: 2026-08-20
-**Total Files Created**: 40
-**Total Source Lines (TypeScript)**: ~2,622 (src/ only)
+**Total Files Created**: 45
+**Total Source Lines (TypeScript)**: ~4,714 (src/ only)
 
 ---
 
@@ -303,6 +303,139 @@ GestureHandlerRootView (required by react-native-gesture-handler)
 
 ---
 
+## EPIC 4: Core Screens — Home & Expense Management — COMPLETE
+
+### PW-014: Implement Login Screen — DONE (completed in Epic 3)
+
+Already implemented as part of PW-011 (Navigation setup). See Epic 3 section above.
+
+---
+
+### PW-015: Implement Home Screen - Expense List — DONE
+
+**Files Created/Updated**:
+- `mobile/src/pages/home/HomeScreen.tsx` — Full implementation (929 lines)
+
+**Architecture**:
+- Web uses DOM scrolling, `window.scrollTo`, CSS classes. Mobile uses `SectionList` with `scrollToLocation`, `StyleSheet.create`.
+- Web uses `reactstrap` `Row`/`Col` for layout. Mobile uses `View` + `flexDirection: 'row'`.
+- Web uses `TextField` + `InputAdornment` from MUI. Mobile uses `TextInput` with icon in `View`.
+
+**Key Decisions**:
+- `SectionList` chosen over `FlatList` for grouped data — sections map directly to `GroupedExpenses` entries
+- Each section's `data` is set to `[]` when collapsed — SectionList natively skips rendering items for empty `data`
+- `React.memo` on `ExpenseItem` for performance with large lists
+- Sorting logic for sections preserves exact web behavior (date descending for days, count/cost for other groups)
+- `RefreshControl` integrated directly into SectionList (covers PW-021 pull-to-refresh)
+- Filter and GroupBy panels rendered as bottom-sheet style modals (covers PW-022 outside click replacement)
+
+**Web → Mobile Component Mapping**:
+| Web (MUI/DOM) | Mobile (RN) |
+|---|---|
+| `<Container>` | `<View style={flex:1}>` |
+| `<TextField>` search | `<TextInput>` with icon View |
+| `<Chip>` filter/group | `<Pressable>` styled as chip |
+| `<Fab>` add expense | `<Pressable>` circular with shadow |
+| `<Avatar>` + MUI Icon | `<View>` circle + MaterialIcons |
+| `<Zoom>` scroll-top | Conditional render with position:absolute |
+| `window.scrollTo()` | `SectionList.scrollToLocation()` |
+| `window.addEventListener('scroll')` | `onScroll` prop + `scrollEventThrottle` |
+| DOM div with CSS class toggle | `data: []` in section for collapse |
+
+---
+
+### PW-016: Implement Long-Press Selection Mode — DONE
+
+**Integrated into**: `mobile/src/pages/home/HomeScreen.tsx`
+
+**Changes from Web**:
+- Web uses custom `useLongPress` hook (500ms delay, mouse/touch events, 10px movement threshold). Mobile uses RN's built-in `Pressable` `onLongPress` prop with `delayLongPress={500}`.
+- Web's `useLongPress` hook (153 lines handling touchstart/touchmove/touchend/mousedown/mouseup) eliminated — RN `Pressable` handles all gesture disambiguation natively.
+- Selection mode UI preserved: selected count, clear/delete/merge action chips in bottom bar.
+- Selection state: `selectionMode: boolean` + `selectedExpenses: Expense[]` — identical pattern to web.
+
+---
+
+### PW-017: Implement Add Expense Dialog — DONE
+
+**Files Created**:
+- `mobile/src/pages/home/home-views/AddExpense.tsx` (265 lines)
+
+**Changes from Web**:
+- Web uses MUI `Dialog` + `Zoom` transition. Mobile uses RN `Modal` with `animationType="slide"`.
+- Web uses MUI `TextField` with `type="number"`. Mobile uses `TextInput` with `keyboardType="numeric"`.
+- Web uses MUI `Chip` for tags. Mobile uses styled `Pressable` in horizontal `ScrollView`.
+- Web uses `crypto.randomUUID()` for vendor prefix. Mobile uses `uuid.v4().substring(0,4)` (Hermes-compatible).
+- `Keyboard.dismiss()` called on save to close keyboard.
+
+---
+
+### PW-018: Implement Tag Expense Dialog — DONE
+
+**Files Created**:
+- `mobile/src/pages/home/home-views/TagExpenses.tsx` (333 lines)
+
+**Changes from Web**:
+- Web uses `navigator.clipboard.writeText()`. Mobile uses `@react-native-clipboard/clipboard` `Clipboard.setString()`.
+- Web uses MUI `Dialog` + `Switch` + `FormControlLabel`. Mobile uses RN `Modal` + `Switch` in styled `View`.
+- Same Redux flow: reads `expense`, `isTagModal`, `tagList`, `vendorTagList` from store. Dispatches `updateExpense`, `setTagMap`, `hideTagExpense`.
+- Auto-tag toggle preserved: creates `VendorTag` via `ExpenseAPI.updateVendorTag()` when enabled.
+- UPI ID display with copy button preserved.
+
+---
+
+### PW-019: Implement Merge Expenses Dialog — DONE
+
+**Files Created**:
+- `mobile/src/pages/home/home-views/MergeExpenses.tsx` (299 lines)
+
+**Changes from Web**:
+- Web uses MUI `Dialog` with custom `ZoomTransition` forwardRef. Mobile uses RN `Modal` with `animationType="slide"`.
+- Same merge logic preserved: calculates total cost with debit/credit awareness, soft-deletes originals, creates merged expense.
+- Vendor selection chips display `formatVendorName()` result.
+- Same Redux flow: `mergeSaveExpense(originalExpenses, mergedExpense)` via callback.
+
+---
+
+### PW-020: Implement Delete Expenses Flow — DONE
+
+**Integrated into**: `mobile/src/pages/home/HomeScreen.tsx`
+
+**Implementation**:
+- Bulk delete via selection mode delete chip in bottom bar (same as web).
+- Calls `ExpenseAPI.addExpense(expense, 'delete')` for each selected expense (soft delete), then dispatches `deleteExpense()` Redux action.
+- Loading state during deletion, followed by `reloadExpenseList()` after 500ms.
+- Swipe-to-delete not implemented (lower priority, can be added in Epic 8 polish).
+
+---
+
+### PW-021: Implement Pull-to-Refresh — DONE
+
+**Integrated into**: `mobile/src/pages/home/HomeScreen.tsx`
+
+**Implementation**:
+- `RefreshControl` prop on `SectionList` triggers `reloadExpenseList()`.
+- `isRefreshing` state controls the refresh indicator.
+- Calls `ExpenseAPI.getExpenseList()`, sorts by date, updates Redux store.
+- Theme-aware refresh colors: spinner = `accentBlue`, background = `bgCard`.
+- New mobile-only feature not present in web (web uses Settings > Reload Data).
+
+---
+
+### PW-022: Replace useCloseOnOutsideClick Hook — DONE
+
+**Files Created**:
+- `mobile/src/pages/home/home-views/FilterPanel.tsx` (120 lines)
+- `mobile/src/pages/home/home-views/GroupByPanel.tsx` (180 lines)
+
+**Changes from Web**:
+- Web's `useCloseOnOutsideClick` hook (46 lines) listens to `document.mousedown` and `document.scroll` events. Eliminated entirely.
+- Mobile uses RN `Modal` with `transparent` backdrop — pressing the backdrop overlay calls `onClose`. This is the idiomatic RN pattern for dismissible panels.
+- Both panels render as bottom-sheet style modals (slide up from bottom with rounded top corners).
+- Filter panel shows date range chips (10 options). Group-by panel shows group options (4) + sort options (2).
+
+---
+
 ## Summary: What's Built So Far
 
 | Epic | Stories | Status | Files | Lines |
@@ -310,16 +443,10 @@ GestureHandlerRootView (required by react-native-gesture-handler)
 | 1. Foundation | PW-001 through PW-008 | COMPLETE | 21 | ~2,000 |
 | 2. Authentication | PW-009, PW-010 | COMPLETE | 3 | ~170 |
 | 3. Navigation & Shell | PW-011, PW-012, PW-013 | COMPLETE | 16 | ~450 |
-| **Total** | **13 stories** | **COMPLETE** | **40 files** | **~2,620** |
+| 4. Home & Expenses | PW-014 through PW-022 | COMPLETE | 5 new + 1 updated | ~2,126 |
+| **Total** | **22 stories** | **COMPLETE** | **45 files** | **~4,714** |
 
 ## What's Next
-
-**Epic 4: Core Screens — Home & Expense Management** (PW-014 through PW-022)
-- LoginScreen already implemented (PW-014 done as part of navigation setup)
-- Home screen with grouped SectionList, search, filtering
-- Add/Tag/Merge/Delete expense dialogs
-- Long-press selection mode
-- Pull-to-refresh
 
 **Epic 5: Insights & Charts** (PW-023 through PW-027)
 
