@@ -1,8 +1,8 @@
 # Pennywise Mobile - Migration Progress Tracker
 
 **Last Updated**: 2026-08-20
-**Total Files Created**: 49
-**Total Source Lines (TypeScript)**: ~6,942 (src/ only)
+**Total Files Created**: 60
+**Total Source Lines (TypeScript)**: ~9,650 (src/ only)
 
 ---
 
@@ -558,6 +558,229 @@ Already implemented as part of PW-011 (Navigation setup). See Epic 3 section abo
 
 ---
 
+## EPIC 7: Settings & Profile — COMPLETE
+
+### PW-030: Implement Settings Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/SettingsScreen.tsx` — Full implementation (280 lines), replaced placeholder
+
+**Architecture**:
+- Web uses MUI `Paper` + `Container` with Framer Motion animations. Mobile uses `ScrollView` with themed `View` cards.
+- Web uses `DashboardTile` component (MUI Avatar + Typography). Mobile inlines tile rendering as `Pressable` rows with icon circles.
+- Web's `ProfileAvatar` component (MUI Avatar with error fallback) replaced with `Image` + `Icon` fallback inline.
+- Web's build info modal with `require('../../buildInfo')` simplified to static `APP_VERSION` constant.
+
+**Web → Mobile Component Mapping**:
+| Web (MUI) | Mobile (RN) |
+|---|---|
+| `DashboardTile` + `Avatar` | `Pressable` row with `View` icon circle |
+| `ProfileAvatar` component | `Image` + `Icon` fallback |
+| `motion.div` stagger animation | Static render |
+| `useNavigate('/route')` | `navigation.navigate('ScreenName')` |
+| `window.location.reload()` | Sign-out triggers auth state change |
+
+**Key Decisions**:
+- Dark mode toggle rendered as inline `Switch` on the tile row (vs navigating away).
+- Theme toggle calls `ExpenseAPI.updateDarkMode()` + `toggleDarkMode()` Redux action (same as web).
+- Sign-out calls `useAuth().signOut()` — auth state change triggers automatic navigator switch.
+- App info modal shows version, author, contact. Build time omitted (static mobile builds).
+- Configuration screen added to tiles (UPI toggle + credit cards) — was commented out in web.
+
+---
+
+### PW-031: Implement Manage Tags Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/ManageTagsScreen.tsx` — Full implementation (205 lines), replaced placeholder
+
+**Changes from Web**:
+- Web uses MUI `Chip` with `onDelete` (x icon built-in). Mobile uses custom `View` chip with `Pressable` close icon.
+- Web uses MUI `Dialog` + `TextField`. Mobile uses RN `Modal` + `TextInput`.
+- Same CRUD flow preserved: `addTag()` + `ExpenseAPI.updateTagList()`, `deleteTag()` + `ExpenseAPI.updateTagList()`.
+- Delete confirmation dialog added (matching web behavior).
+- Tags displayed as pill cloud with `flexWrap: 'wrap'`.
+
+---
+
+### PW-032: Implement Manage Vendor Tags Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/ManageVendorTagsScreen.tsx` — Full implementation (295 lines), replaced placeholder
+
+**Changes from Web**:
+- Web uses MUI `List` + `ListItem` + `ListItemText`. Mobile uses `FlatList` with custom `Pressable` items.
+- Web uses MUI `Dialog` for edit. Mobile uses RN `Modal` with tag selection grid.
+- Web uses MUI `TextField` with `InputAdornment` for search. Mobile uses `TextInput` with `Icon` in styled `View`.
+- Same search filter logic: filters by vendor name or tag (case-insensitive).
+- Same edit flow: tap item → modal shows vendor name + tag chips → select tag → save.
+- Same delete flow: tap delete icon → `ExpenseAPI.deleteVendorTag()` → remove from list.
+- Error/success feedback via `createTimedAlert()`.
+
+---
+
+### PW-033: Implement Reload Data Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/ReloadDataScreen.tsx` — Full implementation (185 lines), replaced placeholder
+
+**Changes from Web**:
+- Web uses MUI `DatePicker` from `@mui/x-date-pickers`. Mobile uses preset date chips (Today, 1 Week, 1 Month, 3 Months, 6 Months, 1 Year) since date pickers require platform-specific native modules.
+- Web uses `window.location.reload()` after clearing cache. Mobile uses `navigation.goBack()`.
+- Web's "Clear IndexedDB" section adapted to "Clear SQLite" — calls `LocalDB.clearLocalDBData()`.
+- Three sections preserved: Reload by date, Reload all (with cost warning), Clear local cache.
+- `ActivityIndicator` replaces MUI `CircularProgress` for loading states.
+
+---
+
+### PW-034: Implement Auto-Tag Expenses Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/AutoTagExpensesScreen.tsx` — Full implementation (195 lines), replaced placeholder
+
+**Changes from Web**:
+- Same date picker replacement as PW-033: preset date chips instead of MUI DatePicker.
+- Same auto-tag logic: `ExpenseAPI.autoTagPastExpenses()` takes start date, returns count of updated expenses.
+- Info banner replaces MUI `Alert severity="info"` with styled `View` with info icon.
+- Success banner with check-circle icon and count display — auto-dismisses after 3.5s (matching web's `setTimeout`).
+- Two sections: Auto-tag by date, Auto-tag all past expenses.
+
+---
+
+### PW-035: Implement Manage Banks Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/ManageBanksScreen.tsx` — Full implementation (270 lines), replaced placeholder
+
+**Changes from Web**:
+- Web uses MUI `List` + `ListItem` + `Dialog`. Mobile uses `FlatList` + RN `Modal`.
+- Web uses `window.location.reload()` after add/delete. Mobile updates local state directly (no reload needed).
+- Web uses `crypto.randomUUID()` for new bank IDs. Mobile uses `'bank_' + Date.now()` (Hermes-compatible).
+- Same add-bank dialog: display name input + multiline match phrases input (comma or newline separated).
+- Same `parseMatchStrings()` function: splits by newline/comma, trims, filters empty.
+- Delete confirmation dialog preserved.
+- FAB for add button at bottom-right corner.
+
+---
+
+### PW-036: Implement Configuration Screen — DONE
+
+**Files Updated**:
+- `mobile/src/pages/setting/setting-views/ConfigurationScreen.tsx` — Full implementation (285 lines), replaced placeholder
+
+**Changes from Web**:
+- Web uses MUI `Switch` + `FormControlLabel`, `List` + `ListItem`, `Dialog`. Mobile uses RN `Switch`, custom list items, RN `Modal`.
+- Web uses Framer Motion `motion.div` for section entry. Mobile renders statically.
+- Same UPI toggle: calls `ExpenseAPI.updateBankConfig()` on toggle.
+- Same credit card management: add (last 4 digits validation), remove, duplicate check.
+- Same validation: exactly 4 digits, no duplicates, non-empty.
+- `ActivityIndicator` for loading and saving states.
+
+---
+
+## EPIC 8: Shared Components & UX Polish — COMPLETE
+
+### PW-037: Implement Global Alert/Toast System — DONE
+
+**Files Created**:
+- `mobile/src/components/AlertComponent.tsx` — Toast overlay component (115 lines)
+
+**Architecture**:
+- Web uses MUI `Alert` + `Snackbar` pattern with CSS positioning. Mobile uses RN `Animated.View` with slide-in animation, positioned absolute at top of screen.
+- Alert items slide in from top with opacity animation (250ms).
+- Color-coded by type: success (green), error (red), warning (yellow), info (blue) — uses theme's subtle accent colors.
+- Dismissible via close button (calls `removeAlert()` Redux action).
+- Stacked alerts offset by 4px each (matching web's `translateY(${index * 8}px)`).
+- Integrated into `App.tsx` — renders above all navigators for global visibility.
+
+**Changes from Web**:
+- Web uses MUI `Alert` component with built-in severity icons. Mobile uses `react-native-vector-icons/MaterialIcons` (check-circle, error, warning, info).
+- Web positions alerts with CSS `position: fixed`. Mobile uses `position: 'absolute'` with `zIndex: 9999`.
+- Same Redux integration: reads `alerts` from store via `useSelector`, dispatches `removeAlert`.
+
+---
+
+### PW-038: Implement Error Handler — DONE
+
+**Files Created**:
+- `mobile/src/components/ErrorHandler.tsx` — Error modal + handler utility (130 lines)
+
+**Changes from Web**:
+- Web uses `createRoot` to render ErrorModal into a dynamically created DOM element (`document.createElement('div')`). Mobile uses `ErrorHandlerProvider` React component that wraps the app tree and provides a `globalShowError` function via module-level variable.
+- Same `ErrorHandlers.handleApiError()` logic: checks for 401/403, permission-denied, unauthenticated error codes.
+- Same `ErrorHandlers.showAccessDeniedModal()` function signature.
+- ErrorModal: "Access Denied" title + error icon + message + "Sign In Again" button that calls `auth().signOut()`.
+- Web's `window.location.href = '/login'` redirect replaced by Firebase auth sign-out (triggers auth state change → navigator switch).
+
+---
+
+### PW-039: Implement Loading Component — DONE
+
+**Files Created**:
+- `mobile/src/components/Loading.tsx` — Full-screen loading spinner (20 lines)
+
+**Changes from Web**:
+- Web uses MUI `CircularProgress`. Mobile uses RN `ActivityIndicator`.
+- Same centered layout pattern.
+- Theme-aware: spinner color = `accentBlue`, background = `bgPrimary`.
+
+---
+
+### PW-040: Implement Animations — DONE
+
+**Files Created**:
+- `mobile/src/components/AnimatedEntrance.tsx` — Reusable fade+slide entrance animation (60 lines)
+
+**Architecture**:
+- Web uses Framer Motion `motion.div` with `initial`, `animate`, `transition`, `variants`. Mobile uses RN `Animated` API.
+- `AnimatedEntrance` component: configurable delay, duration, slide direction (top/bottom/left/right), and slide distance.
+- Uses `useNativeDriver: true` for 60fps animations on the native thread.
+- AlertComponent already uses `Animated.View` for toast slide-in (implemented in PW-037).
+- SplashScreen uses `Animated.View` with spring physics for icon bounce (implemented in PW-042).
+- `react-native-reanimated` configured in Babel (from Epic 1) but not yet used — the built-in `Animated` API covers all current needs. Reanimated available for future gesture-driven animations.
+
+---
+
+### PW-041: Implement Haptic Feedback — DONE
+
+**Files Created**:
+- `mobile/src/utility/haptics.ts` — Haptic feedback utility (25 lines)
+
+**Implementation**:
+- Uses RN `Vibration` API for Android haptic feedback (no additional dependencies).
+- Four feedback levels: `hapticLight` (10ms), `hapticMedium` (20ms), `hapticHeavy` (40ms), `hapticSelection` (5ms).
+- Platform-guarded: only vibrates on Android (`Platform.OS === 'android'`).
+- Available for integration into: long-press selection, delete actions, budget threshold alerts, button taps.
+
+---
+
+### PW-042: Implement Splash Screen & App Icon — DONE
+
+**Files Created**:
+- `mobile/src/components/SplashScreen.tsx` — Animated splash screen (75 lines)
+
+**Implementation**:
+- Branded splash with wallet icon, "Pennywise" title, "Personal Finance Tracker" subtitle.
+- Background: app's accent blue (#1c75bd).
+- Entrance animation: fade-in + spring scale on icon container (friction: 6, tension: 40).
+- Exit animation: fade-out after 1.5s, then calls `onFinish()` callback.
+- Integrated into `App.tsx` — shows before the main app tree renders.
+- App icon assets: to be generated from design using Android Studio's Image Asset tool (requires PNG source file from designer).
+
+**App.tsx Integration**:
+```
+App
+├── SplashScreen (shows for 1.5s on cold start)
+└── GestureHandlerRootView
+    └── SafeAreaProvider
+        └── Redux Provider
+            └── AppInitializer
+                ├── AppNavigator
+                └── AlertComponent
+```
+
+---
+
 ## Summary: What's Built So Far
 
 | Epic | Stories | Status | Files | Lines |
@@ -568,13 +791,11 @@ Already implemented as part of PW-011 (Navigation setup). See Epic 3 section abo
 | 4. Home & Expenses | PW-014 through PW-022 | COMPLETE | 6 | ~2,126 |
 | 5. Insights & Charts | PW-023 through PW-027 | COMPLETE | 4 | ~1,347 |
 | 6. Budget Management | PW-028, PW-029 | COMPLETE | 2 | ~951 |
-| **Total** | **29 stories** | **COMPLETE** | **49 files** | **~6,942** |
+| 7. Settings & Profile | PW-030 through PW-036 | COMPLETE | 7 | ~1,715 |
+| 8. Shared Components | PW-037 through PW-042 | COMPLETE | 5 | ~425 |
+| **Total** | **42 stories** | **COMPLETE** | **60 files** | **~9,184** |
 
 ## What's Next
-
-**Epic 7: Settings & Profile** (PW-030 through PW-036)
-
-**Epic 8: Shared Components & UX Polish** (PW-037 through PW-042)
 
 **Epic 9: Testing & Quality** (PW-043 through PW-046)
 
