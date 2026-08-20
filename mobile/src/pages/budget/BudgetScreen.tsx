@@ -12,9 +12,11 @@ import {useSelector} from 'react-redux';
 import dayjs from 'dayjs';
 
 import {selectExpense} from '../../store/expenseActions';
+import {createTimedAlert} from '../../store/alertActions';
 import {Budget, BudgetProgress, Expense, MonthYear} from '../../Types';
 import {isEmpty} from '../../utility/utility';
 import {useAppTheme} from '../../styles/theme';
+import {NotificationService} from '../../services/NotificationService';
 
 import EditBudgetModal from './EditBudget';
 
@@ -92,6 +94,25 @@ const BudgetScreen: React.FC = () => {
       const filtered = filterExpensesByMonth(expenseList, selectedMonth);
       const progress = calculateBudgetProgress(filtered, budgetList);
       setBudgetProgress(progress);
+
+      const isCurrentMonth =
+        selectedMonth.month === currentDate.month() &&
+        selectedMonth.year === currentDate.year();
+      if (isCurrentMonth) {
+        NotificationService.checkBudgetThresholds(progress).then(alerts => {
+          for (const alert of alerts) {
+            const msg = NotificationService.buildNotificationMessage(
+              alert.budget,
+              alert.level,
+            );
+            NotificationService.showLocalNotification(msg.title, msg.body);
+            createTimedAlert({
+              type: alert.level === '100' ? 'error' : 'warning',
+              message: msg.body,
+            });
+          }
+        });
+      }
     } else if (budgetList.length === 0) {
       setBudgetProgress([]);
     }

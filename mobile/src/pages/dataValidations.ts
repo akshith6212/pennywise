@@ -7,6 +7,7 @@ import {
   setExpenseState,
   setTagList,
 } from '../store/expenseActions';
+import {WidgetService} from '../services/WidgetService';
 
 export type DateRange =
   | '1d'
@@ -49,6 +50,7 @@ export const loadInitialAppData = () => {
       setExpenseState(expenseList, vendorTagResult, darkMode);
       setBudgetList(budgetResult);
       setTagList(tagList);
+      WidgetService.updateWidgetFromExpenses(expenseList).catch(() => {});
     })
     .catch(err => console.error('Error loading initial app data:', err));
 };

@@ -1,8 +1,8 @@
 # Pennywise Mobile - Migration Progress Tracker
 
 **Last Updated**: 2026-08-20
-**Total Files Created**: 79
-**Total Source Lines (TypeScript)**: ~11,634
+**Total Files Created**: 97
+**Total Source Lines (TypeScript)**: ~14,084
 
 ---
 
@@ -942,8 +942,137 @@ App
 | 8. Shared Components | PW-037 through PW-042 | COMPLETE | 5 | ~425 |
 | 9. Testing & Quality | PW-043 through PW-046 | COMPLETE | 11 | ~2,100 |
 | 10. Build, Release & CI/CD | PW-047 through PW-050 | COMPLETE | 8 | ~350 |
-| **Total** | **50 stories** | **COMPLETE** | **79 files** | **~11,634** |
+| 11. Mobile-Only Enhancements | PW-051 through PW-054 | COMPLETE | 18 | ~2,450 |
+| **Total** | **54 stories** | **COMPLETE** | **97 files** | **~14,084** |
 
-## What's Next
+## EPIC 11: Mobile-Only Enhancements — COMPLETE
 
-**Epic 11: Mobile-Only Enhancements** (PW-051 through PW-054)
+### PW-051: Push Notifications for Budget Alerts — DONE
+
+**Files Created**:
+- `mobile/src/services/NotificationService.ts` — Budget threshold notification service (165 lines)
+- `mobile/src/pages/setting/setting-views/NotificationSettingsScreen.tsx` — Per-budget notification preferences UI (195 lines)
+- `mobile/__tests__/services/NotificationService.test.ts` — 10 tests for threshold detection, preferences, deduplication
+
+**Architecture**:
+- `NotificationService.checkBudgetThresholds()` runs on every budget progress calculation for the current month
+- Two threshold levels: 85% (warning) and 100% (exceeded)
+- Deduplication via `AsyncStorage` — each threshold fires once per budget per month
+- Per-budget enable/disable stored in `AsyncStorage` (device-local, not synced)
+- Local notifications via `@notifee/react-native` (with graceful fallback to console.log if not installed)
+- Integrated into `BudgetScreen.tsx` — threshold check runs after `calculateBudgetProgress()` when viewing current month
+- In-app alerts also dispatched via `createTimedAlert()` for immediate visibility
+
+**Dependencies Added**:
+- `@notifee/react-native` ^9.1.2 — local notification channels, triggers, actions
+- `@react-native-async-storage/async-storage` ^2.1.0 — device-local preferences
+
+**Settings Screen**:
+- Global on/off toggle
+- Per-budget toggle list (shows all budgets with amount)
+- Info banner explaining threshold behavior
+- Reset button to clear monthly notification history
+
+---
+
+### PW-052: Biometric Authentication — DONE
+
+**Files Created**:
+- `mobile/src/services/BiometricService.ts` — Biometric capability check, authentication prompt, preference storage (65 lines)
+- `mobile/src/pages/setting/setting-views/BiometricSettingsScreen.tsx` — App lock settings UI with capability detection (210 lines)
+- `mobile/src/hooks/useAppLock.ts` — AppState listener for foreground biometric prompt (55 lines)
+- `mobile/src/components/LockScreen.tsx` — Full-screen lock UI with unlock button (70 lines)
+- `mobile/__tests__/services/BiometricService.test.ts` — 5 tests for enable/disable, capability, authentication
+
+**Architecture**:
+- `BiometricService.checkCapability()` detects available biometry (Fingerprint, FaceID, Iris) via `react-native-biometrics`
+- `BiometricService.authenticate()` shows native biometric prompt with fallback to device PIN/pattern
+- `useAppLock` hook listens to `AppState` changes — prompts biometric when app returns from background
+- Biometric required on initial app launch when enabled
+- `LockScreen` renders over entire app when locked — dark themed with fingerprint icon and unlock button
+- Setting stored in `AsyncStorage` (device-local — biometric preference is inherently device-specific)
+- Enabling requires successful biometric verification first (prevents lockout)
+- Test button in settings to verify biometric works
+
+**App.tsx Integration**:
+```
+App
+├── SplashScreen (cold start)
+└── GestureHandlerRootView
+    └── SafeAreaProvider
+        └── Redux Provider
+            └── AppWithLock (useAppLock hook)
+                ├── LockScreen (when isLocked)
+                └── AppInitializer + AppNavigator + AlertComponent
+```
+
+**Dependencies Added**:
+- `react-native-biometrics` ^3.0.1
+
+---
+
+### PW-053: Widget - Monthly Spending Summary — DONE
+
+**Files Created**:
+- `mobile/src/services/WidgetService.ts` — Widget data calculation and persistence (70 lines)
+- `mobile/src/components/SpendingWidget.tsx` — React component rendering the widget layout (75 lines)
+- `mobile/android/app/src/main/res/xml/spending_widget_info.xml` — Android widget metadata (min 180×110dp, 30min update)
+- `mobile/android/app/src/main/res/layout/spending_widget_layout.xml` — Native Android widget layout (amount, label, count)
+- `mobile/android/app/src/main/res/drawable/widget_background.xml` — Rounded white background shape
+- `mobile/android/app/src/main/res/values/strings.xml` — App name and widget description strings
+- `mobile/__tests__/services/WidgetService.test.ts` — 7 tests for monthly calculation, persistence, formatting
+
+**Architecture**:
+- `WidgetService.calculateMonthlySpending()` filters current month debits and sums total
+- Widget data auto-updates on every expense sync via `loadInitialAppData()` in `dataValidations.ts`
+- Data persisted to `AsyncStorage` for widget access across process boundaries
+- `react-native-android-widget` integration (optional — graceful no-op when library not installed)
+- Native Android widget XML: `AppWidgetProvider` metadata, `RemoteViews` layout, drawable background
+- Widget shows: ₹ amount (large bold), "spent in [Month Year]", transaction count
+- Tapping widget opens Pennywise app (via `pressAction` → default activity)
+
+**Widget Data Flow**:
+```
+ExpenseAPI.getExpenseList() → loadInitialAppData()
+  → WidgetService.updateWidgetFromExpenses()
+    → calculateMonthlySpending()
+    → saveWidgetData() to AsyncStorage
+    → notifyWidget() → react-native-android-widget requestWidgetUpdate
+```
+
+---
+
+### PW-054: Expense Quick-Add from Notification — DONE
+
+**Files Created**:
+- `mobile/src/services/ReminderService.ts` — Daily reminder scheduling with configurable time (100 lines)
+- `mobile/src/pages/setting/setting-views/ReminderSettingsScreen.tsx` — Reminder configuration UI with time picker (230 lines)
+- `mobile/__tests__/services/ReminderService.test.ts` — 6 tests for preferences, time formatting, cancellation
+
+**Architecture**:
+- `ReminderService.scheduleReminder()` creates a daily recurring notification via `@notifee/react-native` trigger API
+- Default time: 9:00 PM (21:00), configurable in 15-minute increments
+- Notification has "Add Expense" action that opens the app's Add Expense screen via `pressAction: {id: 'add-expense'}`
+- Reminder preferences (enabled, hour, minute) stored in `AsyncStorage`
+- Schedule automatically updates when time changes
+- `cancelReminder()` removes the scheduled notification when disabled
+
+**Settings Screen**:
+- Enable/disable toggle with success toast feedback
+- Time picker as bottom-sheet modal with 96 time slots (every 15 min, 24 hours)
+- Currently selected time highlighted with check icon
+- Info banner explaining notification action behavior
+
+**Navigation Updates for Epic 11**:
+- `types.ts`: Added `NotificationSettings`, `BiometricSettings`, `ReminderSettings` routes
+- `ProfileStack.tsx`: Added 3 new Stack.Screen registrations + imports
+- `SettingsScreen.tsx`: Added 3 new tiles (Notifications, App Lock, Daily Reminder) with icons and routes
+
+**Jest Setup Updates**:
+- `jest.setup.js`: Added mocks for `@react-native-async-storage/async-storage`, `@notifee/react-native`, `react-native-biometrics`
+
+---
+
+## Migration Complete
+
+All 11 epics (54 stories) have been implemented. The Pennywise web app has been fully migrated to React Native Android with additional mobile-only enhancements.

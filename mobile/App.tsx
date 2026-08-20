@@ -8,7 +8,9 @@ import {store} from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import AlertComponent from './src/components/AlertComponent';
 import SplashScreen from './src/components/SplashScreen';
+import LockScreen from './src/components/LockScreen';
 import {LocalDB} from './src/api/LocalDB';
+import {useAppLock} from './src/hooks/useAppLock';
 
 const AppInitializer: React.FC<{children: React.ReactNode}> = ({children}) => {
   useEffect(() => {
@@ -18,6 +20,21 @@ const AppInitializer: React.FC<{children: React.ReactNode}> = ({children}) => {
   }, []);
 
   return <>{children}</>;
+};
+
+const AppWithLock: React.FC = () => {
+  const {isLocked, unlock} = useAppLock();
+
+  if (isLocked) {
+    return <LockScreen onUnlock={unlock} />;
+  }
+
+  return (
+    <AppInitializer>
+      <AppNavigator />
+      <AlertComponent />
+    </AppInitializer>
+  );
 };
 
 const App: React.FC = () => {
@@ -31,10 +48,7 @@ const App: React.FC = () => {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <Provider store={store}>
-          <AppInitializer>
-            <AppNavigator />
-            <AlertComponent />
-          </AppInitializer>
+          <AppWithLock />
         </Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -45,3 +45,31 @@ jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon');
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-uuid-1234'),
 }));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve(null)),
+  setItem: jest.fn(() => Promise.resolve()),
+  removeItem: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('@notifee/react-native', () => ({
+  default: {
+    createChannel: jest.fn(() => Promise.resolve('channel-id')),
+    displayNotification: jest.fn(() => Promise.resolve()),
+    createTriggerNotification: jest.fn(() => Promise.resolve()),
+    cancelNotification: jest.fn(() => Promise.resolve()),
+  },
+  TriggerType: {TIMESTAMP: 0},
+  RepeatFrequency: {DAILY: 3},
+}));
+
+jest.mock('react-native-biometrics', () => {
+  return {
+    default: jest.fn().mockImplementation(() => ({
+      isSensorAvailable: jest.fn(() =>
+        Promise.resolve({available: true, biometryType: 'Fingerprint'}),
+      ),
+      simplePrompt: jest.fn(() => Promise.resolve({success: true})),
+    })),
+  };
+});

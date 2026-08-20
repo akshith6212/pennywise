@@ -25,6 +25,9 @@ export type ProfileStackParamList = {
   AutoTagExpenses: undefined;
   ManageBanks: undefined;
   Configuration: undefined;
+  NotificationSettings: undefined;
+  BiometricSettings: undefined;
+  ReminderSettings: undefined;
 };
 
 export type AppTabParamList = {

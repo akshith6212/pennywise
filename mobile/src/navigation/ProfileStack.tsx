@@ -8,6 +8,9 @@ import ReloadDataScreen from '../pages/setting/setting-views/ReloadDataScreen';
 import AutoTagExpensesScreen from '../pages/setting/setting-views/AutoTagExpensesScreen';
 import ManageBanksScreen from '../pages/setting/setting-views/ManageBanksScreen';
 import ConfigurationScreen from '../pages/setting/setting-views/ConfigurationScreen';
+import NotificationSettingsScreen from '../pages/setting/setting-views/NotificationSettingsScreen';
+import BiometricSettingsScreen from '../pages/setting/setting-views/BiometricSettingsScreen';
+import ReminderSettingsScreen from '../pages/setting/setting-views/ReminderSettingsScreen';
 import {useAppTheme} from '../styles/theme';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -58,6 +61,21 @@ const ProfileStack: React.FC = () => {
         name="Configuration"
         component={ConfigurationScreen}
         options={{title: 'Configuration'}}
+      />
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{title: 'Notifications'}}
+      />
+      <Stack.Screen
+        name="BiometricSettings"
+        component={BiometricSettingsScreen}
+        options={{title: 'App Lock'}}
+      />
+      <Stack.Screen
+        name="ReminderSettings"
+        component={ReminderSettingsScreen}
+        options={{title: 'Daily Reminder'}}
       />
     </Stack.Navigator>
   );
