@@ -1,8 +1,8 @@
 # Pennywise Mobile - Migration Progress Tracker
 
 **Last Updated**: 2026-08-20
-**Total Files Created**: 45
-**Total Source Lines (TypeScript)**: ~4,714 (src/ only)
+**Total Files Created**: 49
+**Total Source Lines (TypeScript)**: ~6,942 (src/ only)
 
 ---
 
@@ -436,6 +436,128 @@ Already implemented as part of PW-011 (Navigation setup). See Epic 3 section abo
 
 ---
 
+## EPIC 5: Insights & Charts — COMPLETE
+
+### PW-023: Implement Insights Screen - Statistics Cards — DONE
+
+**Files Created/Updated**:
+- `mobile/src/pages/insights/InsightsScreen.tsx` (755 lines)
+
+**Architecture**:
+- Web uses MUI `Paper` with Framer Motion entry animations. Mobile uses plain `View` with themed card styling.
+- Web uses Recharts `ResponsiveContainer` for chart rendering. Mobile uses custom RN components (see PW-024, PW-025).
+- Same calculation logic preserved: total spending, daily average/median, monthly average/median.
+- All filter/groupBy/calculation panels rendered as bottom-sheet `Modal` components.
+
+**Key Decisions**:
+- `useMemo` for `filteredExpenses`, `availableItems`, and `chartData` — expensive calculations only recompute when dependencies change.
+- Summary cards use accent colors (blue/green/purple) directly instead of CSS gradient backgrounds.
+- Monthly calculation falls back to daily calculation when range is 7d or 30d (matching web logic).
+
+---
+
+### PW-024: Implement Line Chart — DONE
+
+**Files Created**:
+- `mobile/src/pages/insights/LineChart.tsx` (266 lines)
+
+**Changes from Web**:
+- Web uses Recharts `LineChart`, `Line`, `CartesianGrid`, `XAxis`, `YAxis`, `Tooltip`, `Legend`. Mobile uses custom View-based rendering with absolute-positioned line segments and data points.
+- Pure RN implementation — no external charting library dependency. Line segments rendered as rotated `View` elements.
+- Horizontal `ScrollView` for charts with many data points (adapts width based on data count).
+- Y-axis with 5 tick marks, X-axis labels with smart interval (show every Nth label for readability).
+- Legend with color dots below chart.
+- Empty state with icon when no data available.
+- Colors from `CHART_COLORS` constant (same 14 colors as web).
+
+---
+
+### PW-025: Implement Pie Chart — DONE
+
+**Files Created**:
+- `mobile/src/pages/insights/PieChart.tsx` (242 lines)
+
+**Changes from Web**:
+- Web uses Recharts `PieChart`, `Pie`, `Cell`, `Legend` with donut style. Mobile uses a simplified visual representation with center total display.
+- Legend rendered as a value-labeled list below the chart (name, ₹amount, percentage).
+- Tune icon button triggers selection panel toggle (same as web's `onSelectionToggle` callback).
+- Empty state with pie-chart icon.
+
+---
+
+### PW-026: Implement Item Selection Panel — DONE
+
+**Integrated into**: `mobile/src/pages/insights/InsightsScreen.tsx`
+
+**Implementation**:
+- Bottom-sheet `Modal` with scrollable list of available items.
+- Each item shows: color indicator dot, label text, checkbox icon.
+- Toggle items in/out of chart via `selectedItems` state array.
+- Auto-selects top 5 items when group-by changes (matches web behavior).
+- Same `availableItems` calculation: groups sorted by total spend, "Untagged" filtered out for tags group.
+
+---
+
+### PW-027: Implement Report Export (CSV) — DONE
+
+**Files Created**:
+- `mobile/src/pages/insights/exportReport.ts` (84 lines)
+
+**Changes from Web**:
+- Web uses `exceljs` + `file-saver` for XLSX and `json-2-csv` + `file-saver` for CSV. Both browser-only.
+- Mobile implements CSV export with a pure-JS `jsonToCsv` function (no external deps). XLSX export deferred — requires `react-native-fs` + Buffer polyfill setup.
+- File sharing via `react-native-share` is stubbed — log-only until native module integration. The CSV generation logic itself is complete and tested.
+- Same `formatExpenses()` function producing identical output format (Date, Time, Vendor, Amount, Type, PaymentMode, Tag, User).
+
+---
+
+## EPIC 6: Budget Management — COMPLETE
+
+### PW-028: Implement Budget Overview Screen — DONE
+
+**Files Created/Updated**:
+- `mobile/src/pages/budget/BudgetScreen.tsx` (557 lines)
+
+**Architecture**:
+- Web uses MUI `Card`, `CardContent`, `LinearProgress`, `Chip`, `Fab` with Framer Motion staggered animations. Mobile uses `Pressable` cards with native `View` progress bars.
+- Same `calculateBudgetProgress()` logic: "All" tag sums all debits, specific tags filter by tag match.
+- Same `filterExpensesByMonth()` logic: matches expenses by year + month.
+- Month filter panel as bottom-sheet `Modal` with year selector (last 3 years) and month grid.
+
+**Web → Mobile Component Mapping**:
+| Web (MUI) | Mobile (RN) |
+|---|---|
+| `LinearProgress` | `View` with percentage-width fill |
+| `Card` + `CardContent` | `Pressable` with border + elevation |
+| `Chip` tag | `View` with rounded border |
+| `Fab` add | `Pressable` circular with shadow |
+| `AnimatePresence` + `motion.div` | Static render (animations deferred to Epic 8) |
+| `useCloseOnOutsideClick` | Modal backdrop dismiss |
+
+**Key Decisions**:
+- Progress bar color: green (≤85%), yellow (85-100%), red (>100%) — matches web's `getProgressColor()`.
+- Currency formatted with `toLocaleString('en-IN')` for Indian comma grouping (1,00,000 style).
+- Budget cards are tappable → opens EditBudget modal in edit mode.
+
+---
+
+### PW-029: Implement Edit Budget Screen — DONE
+
+**Files Created**:
+- `mobile/src/pages/budget/EditBudget.tsx` (394 lines)
+
+**Changes from Web**:
+- Web uses MUI `Dialog` + `TextField` + `Chip`. Mobile uses RN `Modal` + `TextInput` + styled `Pressable`.
+- Same dual-mode pattern: `isAddMode` (budget === null) vs edit mode (budget exists).
+- Same form validation: name not empty, amount > 0, at least one tag selected.
+- Tag list prepends "All" option (matching web behavior for all-expense budgets).
+- Delete button only shown in edit mode (not add mode) — same as web.
+- Same Redux flow: `addBudget()`, `updateBudget()`, `deleteBudget()` actions.
+- Same API calls: `ExpenseAPI.addBudget()`, `ExpenseAPI.updateBudget()`, `ExpenseAPI.deleteBudget()`.
+- Success/error feedback via `createTimedAlert()`.
+
+---
+
 ## Summary: What's Built So Far
 
 | Epic | Stories | Status | Files | Lines |
@@ -443,13 +565,19 @@ Already implemented as part of PW-011 (Navigation setup). See Epic 3 section abo
 | 1. Foundation | PW-001 through PW-008 | COMPLETE | 21 | ~2,000 |
 | 2. Authentication | PW-009, PW-010 | COMPLETE | 3 | ~170 |
 | 3. Navigation & Shell | PW-011, PW-012, PW-013 | COMPLETE | 16 | ~450 |
-| 4. Home & Expenses | PW-014 through PW-022 | COMPLETE | 5 new + 1 updated | ~2,126 |
-| **Total** | **22 stories** | **COMPLETE** | **45 files** | **~4,714** |
+| 4. Home & Expenses | PW-014 through PW-022 | COMPLETE | 6 | ~2,126 |
+| 5. Insights & Charts | PW-023 through PW-027 | COMPLETE | 4 | ~1,347 |
+| 6. Budget Management | PW-028, PW-029 | COMPLETE | 2 | ~951 |
+| **Total** | **29 stories** | **COMPLETE** | **49 files** | **~6,942** |
 
 ## What's Next
 
-**Epic 5: Insights & Charts** (PW-023 through PW-027)
-
-**Epic 6: Budget Management** (PW-028, PW-029)
-
 **Epic 7: Settings & Profile** (PW-030 through PW-036)
+
+**Epic 8: Shared Components & UX Polish** (PW-037 through PW-042)
+
+**Epic 9: Testing & Quality** (PW-043 through PW-046)
+
+**Epic 10: Build, Release & CI/CD** (PW-047 through PW-050)
+
+**Epic 11: Mobile-Only Enhancements** (PW-051 through PW-054)
