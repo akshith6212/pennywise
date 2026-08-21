@@ -9,10 +9,10 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {useSelector} from 'react-redux';
 
 import {Expense} from '../../Types';
-import {ExpenseAPI} from '../../api/ExpenseAPI';
-import {sortByKey} from '../../utility/utility';
+import {selectExpense} from '../../store/expenseActions';
 import {
   CalculationOption,
   calculationOptions,
@@ -37,8 +37,8 @@ interface LineDataPoint {
 
 const InsightsScreen: React.FC = () => {
   const theme = useAppTheme();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setLoading] = useState(true);
+  const {expenseList: expenses, isAppLoading: isLoading} =
+    useSelector(selectExpense);
   const [timeRange, setTimeRange] = useState<DateRange>('30d');
   const [selectedGroupBy, setSelectedGroupBy] = useState<GroupByOption>('days');
   const [selectedCalculation, setSelectedCalculation] =
@@ -48,22 +48,6 @@ const InsightsScreen: React.FC = () => {
   const [showGroupByPanel, setShowGroupByPanel] = useState(false);
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-
-  useEffect(() => {
-    const fetchExpenses = async () => {
-      try {
-        setLoading(true);
-        const expenseResult = await ExpenseAPI.getExpenseList();
-        const sortedExpenses = sortByKey(expenseResult, 'date');
-        setExpenses(sortedExpenses);
-      } catch (error) {
-        console.error('Error fetching expenses:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void fetchExpenses();
-  }, []);
 
   const filteredExpenses = useMemo(
     () => filterExpensesByDate(expenses, timeRange),
@@ -313,10 +297,8 @@ const InsightsScreen: React.FC = () => {
 
   const calcLabel =
     selectedCalculation === 'average' ? 'Average' : 'Median';
-  const monthSubLabel =
-    timeRange === '7d' || timeRange === '30d'
-      ? `Same as Daily ${calcLabel}`
-      : 'Per Month';
+  const isShortRange = timeRange === '7d' || timeRange === '30d';
+  const monthSubLabel = isShortRange ? 'Per Day' : 'Per Month';
 
   return (
     <View style={[styles.container, {backgroundColor: theme.bgPrimary}]}>
@@ -364,7 +346,9 @@ const InsightsScreen: React.FC = () => {
               styles.summaryCard,
               {backgroundColor: theme.accentPurple},
             ]}>
-            <Text style={styles.cardLabel}>Monthly {calcLabel}</Text>
+            <Text style={styles.cardLabel}>
+              {isShortRange ? `Daily ${calcLabel}` : `Monthly ${calcLabel}`}
+            </Text>
             <Text style={styles.cardValueSmall}>
               ₹{getAverageMonthlySpending()}
             </Text>

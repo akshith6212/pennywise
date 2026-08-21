@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
@@ -63,10 +63,15 @@ export const ErrorHandlerProvider: React.FC<{children: React.ReactNode}> = ({
   const [visible, setVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  globalShowError = (message: string) => {
-    setErrorMessage(message);
-    setVisible(true);
-  };
+  useEffect(() => {
+    globalShowError = (message: string) => {
+      setErrorMessage(message);
+      setVisible(true);
+    };
+    return () => {
+      globalShowError = null;
+    };
+  }, []);
 
   return (
     <>

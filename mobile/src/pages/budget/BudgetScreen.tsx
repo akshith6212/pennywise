@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Modal,
   Pressable,
@@ -37,7 +37,7 @@ const BudgetScreen: React.FC = () => {
   const [editBudgetOpen, setEditBudgetOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
 
-  const currentDate = dayjs();
+  const currentDate = useMemo(() => dayjs(), []);
 
   useEffect(() => {
     const option: MonthYear = {

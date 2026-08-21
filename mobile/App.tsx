@@ -7,6 +7,7 @@ import {StyleSheet} from 'react-native';
 import {store} from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import AlertComponent from './src/components/AlertComponent';
+import {ErrorBoundary} from './src/components/ErrorBoundary';
 import SplashScreen from './src/components/SplashScreen';
 import LockScreen from './src/components/LockScreen';
 import {LocalDB} from './src/api/LocalDB';
@@ -45,13 +46,15 @@ const App: React.FC = () => {
   }
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <Provider store={store}>
-          <AppWithLock />
-        </Provider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <Provider store={store}>
+            <AppWithLock />
+          </Provider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 };
 

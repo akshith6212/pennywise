@@ -62,7 +62,7 @@ export const sortBy2Key = <T extends Record<string, any>>(
   key: string,
   subKey: string,
 ) => {
-  return array.sort((a, b) => {
+  return [...array].sort((a, b) => {
     return b[key][subKey] - a[key][subKey];
   });
 };
@@ -71,7 +71,7 @@ export const sortByKey = <T extends Record<string, any>>(
   array: T[],
   key: string,
 ) => {
-  return array.sort((a, b) => {
+  return [...array].sort((a, b) => {
     return b[key] - a[key];
   });
 };

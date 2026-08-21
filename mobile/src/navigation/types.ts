@@ -4,19 +4,6 @@ export type AuthStackParamList = {
   Login: undefined;
 };
 
-export type HomeStackParamList = {
-  HomeMain: undefined;
-};
-
-export type StatsStackParamList = {
-  InsightsMain: undefined;
-};
-
-export type BudgetStackParamList = {
-  BudgetMain: undefined;
-  EditBudget: {budgetId?: string} | undefined;
-};
-
 export type ProfileStackParamList = {
   SettingsMain: undefined;
   ManageTags: undefined;
@@ -31,9 +18,9 @@ export type ProfileStackParamList = {
 };
 
 export type AppTabParamList = {
-  Home: NavigatorScreenParams<HomeStackParamList>;
-  Stats: NavigatorScreenParams<StatsStackParamList>;
-  Budget: NavigatorScreenParams<BudgetStackParamList>;
+  Home: undefined;
+  Stats: undefined;
+  Budget: undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
 };
 

@@ -207,10 +207,7 @@ export const groupExpenses = (
     }
 
     grouped[groupKey].expenses.push(expense);
-    grouped[groupKey].totalAmount +=
-      expense.costType === 'debit'
-        ? -Number(expense.cost)
-        : Number(expense.cost);
+    grouped[groupKey].totalAmount += Number(expense.cost);
   });
 
   return grouped;

@@ -2,8 +2,18 @@ import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {LocalDB} from '../../api/LocalDB';
 
+const GOOGLE_WEB_CLIENT_ID = '';
+
+if (!GOOGLE_WEB_CLIENT_ID) {
+  console.error(
+    'GOOGLE_WEB_CLIENT_ID is not set. ' +
+      'Copy the web client ID (client_type: 3) from google-services.json ' +
+      'and set it in AuthService.ts.',
+  );
+}
+
 GoogleSignin.configure({
-  webClientId: 'YOUR_WEB_CLIENT_ID_FROM_GOOGLE_SERVICES_JSON',
+  webClientId: GOOGLE_WEB_CLIENT_ID,
 });
 
 export const AuthService = {

@@ -14,23 +14,12 @@ const utc = require('dayjs/plugin/utc');
 dayjs.extend(utc);
 require('dotenv').config();
 
-// Add these imports for Firebase Admin SDK
+const admin = require('firebase-admin');
+const {getFirestore} = require('firebase-admin/firestore');
 
-const admin = require('firebase-admin'); // Import the admin SDK
-const {getFirestore} = require('firebase-admin/firestore'); // Import Firestore from admin SDK
-
-// Initialize the Admin SDK
-// When deployed to Cloud Functions, it automatically picks up credentials
-// from the service account associated with the function.
 admin.initializeApp();
 
-// Get the Firestore instance from the Admin SDK
-const db = getFirestore(); // No need to pass 'app' here
-
-
-// --- Keep your existing onRequest functions ---
-// For the 'onRequest' functions, the core logic of interacting with 'db'
-// will now use the Admin SDK's capabilities.
+const db = getFirestore();
 
 const invalidResponse = {
   400: 'Bad Request',
@@ -38,6 +27,19 @@ const invalidResponse = {
   403: 'Forbidden',
   500: 'Internal Server Error'
 };
+
+let cachedUserUid = null;
+
+async function resolveUserUid(email) {
+  if (cachedUserUid) return cachedUserUid;
+  const userRecord = await admin.auth().getUserByEmail(email);
+  cachedUserUid = userRecord.uid;
+  return cachedUserUid;
+}
+
+function userCollection(uid, collectionName) {
+  return db.collection('users').doc(uid).collection(collectionName);
+}
 
 exports.addExpenseData = onRequest(async (req, res) => {
 
@@ -49,17 +51,17 @@ exports.addExpenseData = onRequest(async (req, res) => {
   }
 
   try {
+    const uid = await resolveUserUid(userEmail);
     const expense = req.body;
 
     let key = dayjs(expense.date).utc().utcOffset(330)
       .format('DD MMM YY, hh:mm A') + ' ' + expense.vendor.slice(0, 10);
 
-    const docRef = db.collection('expense').doc(key);
+    const docRef = userCollection(uid, 'expense').doc(key);
 
-    // setDoc is now using the admin SDK's db instance
     docRef.set(expense).then(() => {
       console.log('Executed setDoc');
-      res.send('Executed setDoc'); // Make sure to send response after async operation
+      res.send('Executed setDoc');
     }).catch(err => {
       console.error('Error in addExpenseData setDoc:', err);
       res.status(500).send('Error - ' + err.message);
@@ -83,9 +85,10 @@ exports.getOneDoc = onRequest(async (req, res) => {
   }
 
   try {
+    const uid = await resolveUserUid(userEmail);
     const data = req.body;
 
-    const docRef = db.collection(data.collection).doc(data.key);
+    const docRef = userCollection(uid, data.collection).doc(data.key);
     docRef.get().then((resp) => {
       console.log(resp.data());
       res.send(resp.data());
@@ -112,12 +115,13 @@ exports.setOneDoc = onRequest(async (req, res) => {
   }
 
   try {
+    const uid = await resolveUserUid(userEmail);
     const data = req.body;
 
-    const docRef = db.collection(data.collection).doc(data.key);
+    const docRef = userCollection(uid, data.collection).doc(data.key);
     docRef.set(data.json).then(() => {
       console.log('Executed setDoc');
-      res.send('Executed setOneDoc'); // Make sure to send response after async operation
+      res.send('Executed setOneDoc');
     }).catch(err => {
       console.error('Error in setOneDoc setDoc:', err);
       res.status(500).send('Error - ' + err.message);
@@ -140,9 +144,10 @@ exports.getAllDoc = onRequest(async (req, res) => {
   }
 
   try {
+    const uid = await resolveUserUid(userEmail);
     const data = req.body;
 
-    db.collection(data.collection).get().then((querySnapshot) => {
+    userCollection(uid, data.collection).get().then((querySnapshot) => {
       let docList = [];
       querySnapshot.forEach((doc) => {
         let document = doc.data();
@@ -183,14 +188,12 @@ const isValidRequest = async (req, userEmail) => {
     const token = req.headers.authorization.split('Bearer ')[1];
 
     try {
-      // Verify the token against Google's token info endpoint
       const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${token}`);
       const tokenInfo = await tokenInfoResponse.json();
 
       console.log('token info', tokenInfo);
 
       if (tokenInfo.email_verified && tokenInfo.email === userEmail) {
-        // console.log(`Service account ${userEmail} authenticated via OAuth2 access token.`);
         return 200;
       } else {
         console.warn(`OAuth2 token provided but email ${tokenInfo.email} is not matching account user email or not verified.`);

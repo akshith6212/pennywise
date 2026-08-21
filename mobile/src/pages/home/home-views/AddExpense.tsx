@@ -39,8 +39,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({visible, onClose}) => 
 
   const onSaveExpense = () => {
     Keyboard.dismiss();
-    const uuid = uuidv4();
-    const shortId = uuidv4().substring(0, 4);
+    const id = uuidv4();
+    const shortId = id.substring(0, 4);
     const newExpense: Expense = {
       id: 'manual',
       vendor: shortId + ' manual entry',
@@ -49,7 +49,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({visible, onClose}) => 
       cost: parseFloat(cost),
       tag: selectedTag,
       costType: 'debit',
-      mailId: uuid,
+      mailId: id,
       user: 'manual',
       type: 'manual',
       operation: 'update',
@@ -62,7 +62,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({visible, onClose}) => 
     });
   };
 
-  const isDisabled = cost === '' || cost === '0' || isNaN(parseFloat(cost));
+  const isDisabled =
+    cost === '' || isNaN(parseFloat(cost)) || parseFloat(cost) <= 0;
   const formattedDateTime = getDateMonthTime(Date.now());
 
   return (

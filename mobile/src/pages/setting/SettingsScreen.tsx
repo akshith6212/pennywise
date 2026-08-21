@@ -14,7 +14,7 @@ import {useSelector} from 'react-redux';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
-import {useAuth} from '../../hooks/useAuth';
+import {useAuth} from '../login/AuthContext';
 import {selectExpense, toggleDarkMode} from '../../store/expenseActions';
 import {createTimedAlert} from '../../store/alertActions';
 import {ExpenseAPI} from '../../api/ExpenseAPI';

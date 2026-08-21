@@ -1,3 +1,4 @@
+import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import {
   BUDGET_LAST_UPDATE,
@@ -17,6 +18,14 @@ import {
 
 type DocumentData = {[field: string]: unknown};
 
+const getUserCollection = (collectionName: string) => {
+  const uid = auth().currentUser?.uid;
+  if (!uid) {
+    throw new Error('User not authenticated');
+  }
+  return firestore().collection('users').doc(uid).collection(collectionName);
+};
+
 const fireStoreDoc = {
   set: async (
     collectionName: string,
@@ -24,7 +33,7 @@ const fireStoreDoc = {
     val: DocumentData,
   ): Promise<void> => {
     try {
-      await firestore().collection(collectionName).doc(key).set(val);
+      await getUserCollection(collectionName).doc(key).set(val);
     } catch (e) {
       console.error('Error adding document:', e);
       throw e;
@@ -36,7 +45,7 @@ const fireStoreDoc = {
     key: string,
   ): Promise<DocumentData | null> => {
     try {
-      const snap = await firestore().collection(collectionName).doc(key).get();
+      const snap = await getUserCollection(collectionName).doc(key).get();
       return snap.exists ? (snap.data() as DocumentData) : null;
     } catch (e) {
       console.error('Error getting document:', e);
@@ -46,7 +55,7 @@ const fireStoreDoc = {
 
   delete: async (collectionName: string, key: string): Promise<boolean> => {
     try {
-      await firestore().collection(collectionName).doc(key).delete();
+      await getUserCollection(collectionName).doc(key).delete();
       return true;
     } catch (e) {
       console.error('Error deleting document:', e);
@@ -208,8 +217,7 @@ export class ExpenseAPI {
       expense.operation = operation;
 
       const {id, ...expenseWithoutId} = expense;
-      await firestore()
-        .collection('expense')
+      await getUserCollection('expense')
         .doc(key)
         .set(expenseWithoutId as DocumentData);
 
@@ -225,7 +233,7 @@ export class ExpenseAPI {
 
   static deleteExpense = async (expense: Expense): Promise<boolean> => {
     try {
-      await firestore().collection('expense').doc(expense.id).delete();
+      await getUserCollection('expense').doc(expense.id).delete();
 
       if (expense.mailId) {
         await LocalDB.deleteExpense(expense.mailId);
@@ -251,12 +259,11 @@ export class ExpenseAPI {
       if (configData) {
         lastUpdatedDate = Number(configData.value);
       }
-      if (overrideLastDate) {
+      if (overrideLastDate !== undefined) {
         lastUpdatedDate = overrideLastDate;
       }
 
-      const querySnapshot = await firestore()
-        .collection('expense')
+      const querySnapshot = await getUserCollection('expense')
         .where('modifiedDate', '>=', lastUpdatedDate)
         .get();
 
@@ -370,8 +377,7 @@ export class ExpenseAPI {
         lastUpdatedDate = Number(configData.value);
       }
 
-      const querySnapshot = await firestore()
-        .collection('vendorTag')
+      const querySnapshot = await getUserCollection('vendorTag')
         .where('date', '>', lastUpdatedDate)
         .get();
 
@@ -402,8 +408,7 @@ export class ExpenseAPI {
       const {id, ...vendorTagWithoutId} = vendorTag;
       vendorTagWithoutId.date = Date.now();
 
-      await firestore()
-        .collection('vendorTag')
+      await getUserCollection('vendorTag')
         .doc(id)
         .set(vendorTagWithoutId);
 
@@ -416,7 +421,7 @@ export class ExpenseAPI {
 
   static deleteVendorTag = async (vendorTagId: string): Promise<boolean> => {
     try {
-      await firestore().collection('vendorTag').doc(vendorTagId).delete();
+      await getUserCollection('vendorTag').doc(vendorTagId).delete();
       return true;
     } catch (e) {
       console.error('Error deleting vendorTag:', e);
@@ -439,8 +444,7 @@ export class ExpenseAPI {
         return 0;
       }
 
-      const querySnapshot = await firestore()
-        .collection('expense')
+      const querySnapshot = await getUserCollection('expense')
         .where('modifiedDate', '>=', startDate)
         .get();
 
@@ -467,7 +471,7 @@ export class ExpenseAPI {
       });
 
       if (expensesToUpdate.length > 0) {
-        const batchSize = 700;
+        const batchSize = 500;
 
         for (let i = 0; i < expensesToUpdate.length; i += batchSize) {
           const batch = expensesToUpdate.slice(i, i + batchSize);
@@ -475,8 +479,7 @@ export class ExpenseAPI {
           const updatePromises = batch.map(async expense => {
             const {id, ...expenseWithoutId} = expense;
             if (id) {
-              await firestore()
-                .collection('expense')
+              await getUserCollection('expense')
                 .doc(id)
                 .set(expenseWithoutId);
             }
@@ -513,8 +516,7 @@ export class ExpenseAPI {
       budget.operation = operation;
 
       const {id, ...budgetWithoutId} = budget;
-      await firestore()
-        .collection('budget')
+      await getUserCollection('budget')
         .doc(key)
         .set(budgetWithoutId as DocumentData);
 
@@ -535,8 +537,7 @@ export class ExpenseAPI {
       budget.operation = 'update';
 
       const {id, ...budgetWithoutId} = budget;
-      await firestore()
-        .collection('budget')
+      await getUserCollection('budget')
         .doc(budget.id)
         .set(budgetWithoutId as DocumentData);
 
@@ -551,7 +552,7 @@ export class ExpenseAPI {
 
   static deleteBudget = async (budget: Budget): Promise<boolean> => {
     try {
-      await firestore().collection('budget').doc(budget.id).delete();
+      await getUserCollection('budget').doc(budget.id).delete();
       await LocalDB.deleteBudget(budget.id);
       return true;
     } catch (e) {
@@ -573,12 +574,11 @@ export class ExpenseAPI {
       if (configData) {
         lastUpdatedDate = Number(configData.value);
       }
-      if (overrideLastDate) {
+      if (overrideLastDate !== undefined) {
         lastUpdatedDate = overrideLastDate;
       }
 
-      const querySnapshot = await firestore()
-        .collection('budget')
+      const querySnapshot = await getUserCollection('budget')
         .where('modifiedDate', '>=', lastUpdatedDate)
         .get();
 

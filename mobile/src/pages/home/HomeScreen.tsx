@@ -218,12 +218,11 @@ const HomeScreen: React.FC = () => {
       return;
     }
     const grouped = groupExpenses(filteredExpenses, selectedGroupBy);
+    const newCollapsed: {[key: string]: boolean} = {};
     Object.keys(grouped).forEach(groupKey => {
-      setCollapsedGroups(prev => ({
-        ...prev,
-        [groupKey]: selectedGroupBy !== 'days',
-      }));
+      newCollapsed[groupKey] = selectedGroupBy !== 'days';
     });
+    setCollapsedGroups(newCollapsed);
     setGroupedExpenses(grouped);
     setLoading(false);
   }, [filteredExpenses, selectedGroupBy, selectedSortBy]);
