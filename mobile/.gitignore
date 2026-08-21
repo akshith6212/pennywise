@@ -1,0 +1,42 @@
+# OSX
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Android
+android/app/build/
+android/.gradle
+android/captures/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+*.apk
+*.aab
+
+# iOS
+ios/Pods/
+ios/build/
+*.xcworkspace
+
+# Environment
+.env
+.env.local
+.env.debug
+.env.release
+google-services.json
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Testing
+coverage/
+
+# Metro
+.metro-health-check*
+
+# Build
+*.jsbundle

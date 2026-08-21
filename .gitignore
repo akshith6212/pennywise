@@ -1,15 +1,18 @@
 # Dependencies
 /node_modules
 /functions/node_modules
+/mobile/node_modules
 
-# Build files
-/build
-/dist
-.next/
-/out/
-
-# Auto-generated files
-/src/buildInfo.ts
+# Mobile build
+/mobile/android/app/build/
+/mobile/android/build/
+/mobile/android/.gradle/
+/mobile/android/local.properties
+/mobile/android/app/src/main/assets/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
 
 # Miscellaneous
 .DS_Store
@@ -20,7 +23,7 @@
 .env.test.local
 .env.production.local
 
-#appscript
+# AppScript
 appScript/env.js
 .clasp.json
 
@@ -37,3 +40,9 @@ yarn-error.log*
 .firebase/
 .firebaserc
 firebase-debug.log
+
+# Metro bundler
+.metro-health-check*
+
+# Testing
+/mobile/coverage/
